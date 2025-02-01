@@ -51,17 +51,22 @@ fn toggle_vsync(input: Res<ButtonInput<KeyCode>>, mut windows: Query<&mut Window
 fn main() {
     App::new()
         .insert_resource(ClearColor(Color::BLACK))
-        .add_plugins(DefaultPlugins.set(WindowPlugin {
-            primary_window: Some(Window {
-                title: "Bevy Voxel Meshing".into(),
-                name: Some("bevy.app".into()),
-                resolution: (1280., 720.).into(),
-                present_mode: PresentMode::AutoVsync,
+        .add_plugins((
+            DefaultPlugins.set(WindowPlugin {
+                primary_window: Some(Window {
+                    title: "Bevy Voxel Meshing".into(),
+                    name: Some("bevy.app".into()),
+                    resolution: (1280., 720.).into(),
+                    present_mode: PresentMode::AutoVsync,
+                    ..default()
+                }),
                 ..default()
             }),
-            ..default()
-        }))
-        .add_systems(Startup, (setup_camera, setup_temp_geometry))
+            LogDiagnosticsPlugin::default(),
+            FrameTimeDiagnosticsPlugin,
+        ))
+        .add_plugins(PlayerPlugin)
+        .add_systems(Startup, setup_temp_geometry)
         .add_systems(Update, toggle_vsync)
         .run();
 }
