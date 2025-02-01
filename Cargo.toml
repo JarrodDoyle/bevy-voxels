@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 bevy = { version = "0.15.1", features = ["dynamic_linking"] }
 bevy_flycam = "0.15.0"
+fastnoise2 = "0.3.1"
 
 [profile.dev]
 opt-level = 1
