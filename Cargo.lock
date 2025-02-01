@@ -317,6 +317,7 @@ dependencies = [
  "bevy",
  "bevy_flycam",
  "fastnoise2",
+ "log",
 ]
 
 [[package]]
