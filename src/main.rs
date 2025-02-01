@@ -19,7 +19,7 @@ struct WorldNoise {
     terrain: SafeNode,
 }
 
-fn gen_chunk_mesh(x: usize, y: usize, z: usize, world_noise: &Res<WorldNoise>) -> Mesh {
+fn gen_chunk_mesh(x: usize, y: usize, z: usize, world_noise: &Res<WorldNoise>) -> Option<Mesh> {
     const CHUNK_LEN: usize = 32;
     const FREQUENCY: f32 = 0.005;
     const SEED: i32 = 1338;
@@ -114,13 +114,19 @@ fn gen_chunk_mesh(x: usize, y: usize, z: usize, world_noise: &Res<WorldNoise>) -
         }
     }
 
-    Mesh::new(
-        PrimitiveTopology::TriangleList,
-        RenderAssetUsages::RENDER_WORLD,
+    if vs.len() == 0 {
+        return None;
+    }
+
+    Some(
+        Mesh::new(
+            PrimitiveTopology::TriangleList,
+            RenderAssetUsages::RENDER_WORLD,
+        )
+        .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, vs)
+        .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, ns)
+        .with_inserted_indices(Indices::U32(is)),
     )
-    .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, vs)
-    .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, ns)
-    .with_inserted_indices(Indices::U32(is))
 }
 
 fn setup_temp_geometry(
@@ -160,11 +166,13 @@ fn setup_temp_geometry(
     for z in 0..5 {
         for y in 0..5 {
             for x in 0..5 {
-                commands.spawn((
-                    Mesh3d(meshes.add(gen_chunk_mesh(x, y, z, &noise))),
-                    MeshMaterial3d(materials.add(colors[i % colors.len()])),
-                    Transform::from_xyz(x as f32 * 32., y as f32 * 32., z as f32 * 32.),
-                ));
+                if let Some(mesh) = gen_chunk_mesh(x, y, z, &noise) {
+                    commands.spawn((
+                        Mesh3d(meshes.add(mesh)),
+                        MeshMaterial3d(materials.add(colors[i % colors.len()])),
+                        Transform::from_xyz(x as f32 * 32., y as f32 * 32., z as f32 * 32.),
+                    ));
+                }
                 i += 1;
             }
         }
