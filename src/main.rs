@@ -19,10 +19,16 @@ struct WorldNoise {
     terrain: SafeNode,
 }
 
-fn gen_chunk_mesh(x: usize, y: usize, z: usize, world_noise: &Res<WorldNoise>) -> Option<Mesh> {
-    const CHUNK_LEN: usize = 32;
-    const FREQUENCY: f32 = 0.005;
-    const SEED: i32 = 1338;
+#[derive(Component)]
+struct Chunk {
+    world_pos: [i32; 3],
+    voxels: Vec<BlockType>,
+}
+
+#[derive(Component)]
+struct ChunkNeedsMeshing;
+
+fn gen_chunk_mesh(voxels: &[BlockType]) -> Option<Mesh> {
     const NEIGHBOUR_OFFSETS: [(i32, i32, i32); 6] = [
         (1, 0, 0),  // right
         (-1, 0, 0), // left
@@ -44,26 +50,6 @@ fn gen_chunk_mesh(x: usize, y: usize, z: usize, world_noise: &Res<WorldNoise>) -
     const RAW_INDICES: [usize; 24] = [
         0, 1, 2, 3, 4, 5, 6, 7, 1, 4, 7, 2, 5, 0, 3, 6, 5, 4, 1, 0, 3, 2, 7, 6,
     ];
-
-    let mut noise_vals = vec![0.0; CHUNK_LEN * CHUNK_LEN * CHUNK_LEN];
-    world_noise.terrain.gen_uniform_grid_3d(
-        &mut noise_vals,
-        (CHUNK_LEN * x) as i32,
-        (CHUNK_LEN * y) as i32,
-        (CHUNK_LEN * z) as i32,
-        CHUNK_LEN as i32,
-        CHUNK_LEN as i32,
-        CHUNK_LEN as i32,
-        FREQUENCY,
-        SEED,
-    );
-
-    let mut voxels = [BlockType::Air; CHUNK_LEN * CHUNK_LEN * CHUNK_LEN];
-    (0..CHUNK_LEN * CHUNK_LEN * CHUNK_LEN).for_each(|i| {
-        if noise_vals[i] > 0. {
-            voxels[i] = BlockType::Stone;
-        }
-    });
 
     let mut vs: Vec<[f32; 3]> = vec![];
     let mut is = vec![];
@@ -114,7 +100,7 @@ fn gen_chunk_mesh(x: usize, y: usize, z: usize, world_noise: &Res<WorldNoise>) -
         }
     }
 
-    if vs.len() == 0 {
+    if vs.is_empty() {
         return None;
     }
 
@@ -133,7 +119,6 @@ fn setup_temp_geometry(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    noise: Res<WorldNoise>,
 ) {
     commands.spawn((
         Mesh3d(meshes.add(Circle::new(4.0))),
@@ -152,31 +137,6 @@ fn setup_temp_geometry(
         },
         Transform::from_xyz(-8., 8.0, 4.0),
     ));
-
-    let colors = [
-        Color::srgb_u8(228, 59, 68),
-        Color::srgb_u8(62, 137, 72),
-        Color::srgb_u8(0, 153, 219),
-        Color::srgb_u8(192, 203, 220),
-        Color::srgb_u8(254, 231, 97),
-        Color::srgb_u8(104, 56, 108),
-    ];
-
-    let mut i = 0;
-    for z in 0..5 {
-        for y in 0..5 {
-            for x in 0..5 {
-                if let Some(mesh) = gen_chunk_mesh(x, y, z, &noise) {
-                    commands.spawn((
-                        Mesh3d(meshes.add(mesh)),
-                        MeshMaterial3d(materials.add(colors[i % colors.len()])),
-                        Transform::from_xyz(x as f32 * 32., y as f32 * 32., z as f32 * 32.),
-                    ));
-                }
-                i += 1;
-            }
-        }
-    }
 }
 
 fn setup_noise(mut commands: Commands) {
@@ -199,6 +159,79 @@ fn toggle_vsync(input: Res<ButtonInput<KeyCode>>, mut windows: Query<&mut Window
     }
 }
 
+const CHUNK_LEN: usize = 32;
+const FREQUENCY: f32 = 0.005;
+const SEED: i32 = 1338;
+
+fn sys_chunk_spawner(mut commands: Commands, world_noise: Res<WorldNoise>) {
+    log::info!("Spawning chunks...");
+
+    let mut noise_vals = vec![0.0; CHUNK_LEN * CHUNK_LEN * CHUNK_LEN];
+
+    for z in 0..9 {
+        for y in 0..9 {
+            for x in 0..9 {
+                world_noise.terrain.gen_uniform_grid_3d(
+                    &mut noise_vals,
+                    (CHUNK_LEN * x) as i32,
+                    (CHUNK_LEN * y) as i32,
+                    (CHUNK_LEN * z) as i32,
+                    CHUNK_LEN as i32,
+                    CHUNK_LEN as i32,
+                    CHUNK_LEN as i32,
+                    FREQUENCY,
+                    SEED,
+                );
+
+                let mut voxels = vec![BlockType::Air; CHUNK_LEN * CHUNK_LEN * CHUNK_LEN];
+                (0..CHUNK_LEN * CHUNK_LEN * CHUNK_LEN).for_each(|i| {
+                    if noise_vals[i] > 0. {
+                        voxels[i] = BlockType::Stone;
+                    }
+                });
+
+                commands.spawn((
+                    Chunk {
+                        world_pos: [x as i32, y as i32, z as i32],
+                        voxels,
+                    },
+                    ChunkNeedsMeshing,
+                    Transform::from_xyz(x as f32 * 32., y as f32 * 32., z as f32 * 32.),
+                ));
+            }
+        }
+    }
+    log::info!("Finished spawning chunks...");
+}
+
+fn sys_chunk_mesher(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    chunks_query: Query<(Entity, &Chunk, &ChunkNeedsMeshing)>,
+) {
+    let colors = [
+        Color::srgb_u8(228, 59, 68),
+        Color::srgb_u8(62, 137, 72),
+        Color::srgb_u8(0, 153, 219),
+        Color::srgb_u8(192, 203, 220),
+        Color::srgb_u8(254, 231, 97),
+        Color::srgb_u8(104, 56, 108),
+    ];
+
+    for (id, chunk, _) in &chunks_query {
+        if let Some(mesh) = gen_chunk_mesh(&chunk.voxels) {
+            commands.entity(id).remove::<ChunkNeedsMeshing>().insert((
+                Mesh3d(meshes.add(mesh)),
+                MeshMaterial3d(materials.add(colors[id.index() as usize % colors.len()])),
+            ));
+        } else {
+            // TODO: Remove meshmaterial?
+            commands.entity(id).remove::<(Mesh3d, ChunkNeedsMeshing)>();
+        }
+    }
+}
+
 fn main() {
     App::new()
         .insert_resource(ClearColor(Color::BLACK))
@@ -217,7 +250,10 @@ fn main() {
             FrameTimeDiagnosticsPlugin,
         ))
         .add_plugins(PlayerPlugin)
-        .add_systems(Startup, (setup_noise, setup_temp_geometry).chain())
-        .add_systems(Update, toggle_vsync)
+        .add_systems(
+            Startup,
+            (setup_noise, setup_temp_geometry, sys_chunk_spawner).chain(),
+        )
+        .add_systems(Update, (toggle_vsync, sys_chunk_mesher))
         .run();
 }
