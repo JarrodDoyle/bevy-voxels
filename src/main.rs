@@ -23,6 +23,27 @@ fn gen_chunk_mesh(x: usize, y: usize, z: usize, world_noise: &Res<WorldNoise>) -
     const CHUNK_LEN: usize = 32;
     const FREQUENCY: f32 = 0.005;
     const SEED: i32 = 1338;
+    const NEIGHBOUR_OFFSETS: [(i32, i32, i32); 6] = [
+        (1, 0, 0),  // right
+        (-1, 0, 0), // left
+        (0, -1, 0), // down
+        (0, 1, 0),  // up
+        (0, 0, 1),  // forward
+        (0, 0, -1), // back
+    ];
+    const RAW_VERTICES: [(f32, f32, f32); 8] = [
+        (1., 1., 1.),
+        (1., 0., 1.),
+        (1., 0., 0.),
+        (1., 1., 0.),
+        (0., 0., 1.),
+        (0., 1., 1.),
+        (0., 1., 0.),
+        (0., 0., 0.),
+    ];
+    const RAW_INDICES: [usize; 24] = [
+        0, 1, 2, 3, 4, 5, 6, 7, 1, 4, 7, 2, 5, 0, 3, 6, 5, 4, 1, 0, 3, 2, 7, 6,
+    ];
 
     let mut noise_vals = vec![0.0; CHUNK_LEN * CHUNK_LEN * CHUNK_LEN];
     world_noise.terrain.gen_uniform_grid_3d(
@@ -59,103 +80,36 @@ fn gen_chunk_mesh(x: usize, y: usize, z: usize, world_noise: &Res<WorldNoise>) -
                 let yf = y as f32;
                 let zf = z as f32;
 
-                let i_offset = vs.len() as u32;
+                for i in 0..NEIGHBOUR_OFFSETS.len() {
+                    let offset = NEIGHBOUR_OFFSETS[i];
+                    let nx = (x as i32) + offset.0;
+                    let ny = (y as i32) + offset.1;
+                    let nz = (z as i32) + offset.2;
+                    let nidx =
+                        nx + ny * CHUNK_LEN as i32 + nz * CHUNK_LEN as i32 * CHUNK_LEN as i32;
 
-                // top
-                vs.push([xf, yf + 1., zf]);
-                vs.push([xf, yf + 1., zf + 1.]);
-                vs.push([xf + 1., yf + 1., zf + 1.]);
-                vs.push([xf + 1., yf + 1., zf]);
-                ns.push([0., 1., 0.]);
-                ns.push([0., 1., 0.]);
-                ns.push([0., 1., 0.]);
-                ns.push([0., 1., 0.]);
-                is.push(i_offset);
-                is.push(i_offset + 1);
-                is.push(i_offset + 2);
-                is.push(i_offset);
-                is.push(i_offset + 2);
-                is.push(i_offset + 3);
-
-                // bottom
-                vs.push([xf, yf, zf]);
-                vs.push([xf + 1., yf, zf]);
-                vs.push([xf + 1., yf, zf + 1.]);
-                vs.push([xf, yf, zf + 1.]);
-                ns.push([0., -1., 0.]);
-                ns.push([0., -1., 0.]);
-                ns.push([0., -1., 0.]);
-                ns.push([0., -1., 0.]);
-                is.push(i_offset + 4);
-                is.push(i_offset + 5);
-                is.push(i_offset + 6);
-                is.push(i_offset + 4);
-                is.push(i_offset + 6);
-                is.push(i_offset + 7);
-
-                // front
-                vs.push([xf, yf, zf]);
-                vs.push([xf, yf + 1., zf]);
-                vs.push([xf + 1., yf + 1., zf]);
-                vs.push([xf + 1., yf, zf]);
-                ns.push([-1., 0., 0.]);
-                ns.push([-1., 0., 0.]);
-                ns.push([-1., 0., 0.]);
-                ns.push([-1., 0., 0.]);
-                is.push(i_offset + 8);
-                is.push(i_offset + 9);
-                is.push(i_offset + 10);
-                is.push(i_offset + 8);
-                is.push(i_offset + 10);
-                is.push(i_offset + 11);
-
-                // back
-                vs.push([xf, yf, zf + 1.]);
-                vs.push([xf + 1., yf, zf + 1.]);
-                vs.push([xf + 1., yf + 1., zf + 1.]);
-                vs.push([xf, yf + 1., zf + 1.]);
-                ns.push([1., 0., 0.]);
-                ns.push([1., 0., 0.]);
-                ns.push([1., 0., 0.]);
-                ns.push([1., 0., 0.]);
-                is.push(i_offset + 12);
-                is.push(i_offset + 13);
-                is.push(i_offset + 14);
-                is.push(i_offset + 12);
-                is.push(i_offset + 14);
-                is.push(i_offset + 15);
-
-                // left
-                vs.push([xf, yf, zf + 1.]);
-                vs.push([xf, yf + 1., zf + 1.]);
-                vs.push([xf, yf + 1., zf]);
-                vs.push([xf, yf, zf]);
-                ns.push([0., 0., -1.]);
-                ns.push([0., 0., -1.]);
-                ns.push([0., 0., -1.]);
-                ns.push([0., 0., -1.]);
-                is.push(i_offset + 16);
-                is.push(i_offset + 17);
-                is.push(i_offset + 18);
-                is.push(i_offset + 16);
-                is.push(i_offset + 18);
-                is.push(i_offset + 19);
-
-                // right
-                vs.push([xf + 1., yf, zf + 1.]);
-                vs.push([xf + 1., yf, zf]);
-                vs.push([xf + 1., yf + 1., zf]);
-                vs.push([xf + 1., yf + 1., zf + 1.]);
-                ns.push([0., 0., 1.]);
-                ns.push([0., 0., 1.]);
-                ns.push([0., 0., 1.]);
-                ns.push([0., 0., 1.]);
-                is.push(i_offset + 20);
-                is.push(i_offset + 21);
-                is.push(i_offset + 22);
-                is.push(i_offset + 20);
-                is.push(i_offset + 22);
-                is.push(i_offset + 23);
+                    if nx < 0
+                        || nx >= CHUNK_LEN as i32
+                        || ny < 0
+                        || ny >= CHUNK_LEN as i32
+                        || nz < 0
+                        || nz >= CHUNK_LEN as i32
+                        || voxels[nidx as usize] == BlockType::Air
+                    {
+                        let vcount = vs.len() as u32;
+                        for j in 0..4 {
+                            let raw_v = RAW_VERTICES[RAW_INDICES[i * 4 + j]];
+                            vs.push([xf + raw_v.0, yf + raw_v.1, zf + raw_v.2]);
+                            ns.push([offset.0 as f32, offset.1 as f32, offset.2 as f32]);
+                        }
+                        is.push(vcount);
+                        is.push(vcount + 2);
+                        is.push(vcount + 3);
+                        is.push(vcount);
+                        is.push(vcount + 1);
+                        is.push(vcount + 2);
+                    }
+                }
             }
         }
     }
