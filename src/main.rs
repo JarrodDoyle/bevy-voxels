@@ -107,7 +107,7 @@ fn gen_chunk_mesh(voxels: &[BlockType]) -> Option<Mesh> {
     Some(
         Mesh::new(
             PrimitiveTopology::TriangleList,
-            RenderAssetUsages::RENDER_WORLD,
+            RenderAssetUsages::default(),
         )
         .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, vs)
         .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, ns)
@@ -164,8 +164,6 @@ const FREQUENCY: f32 = 0.005;
 const SEED: i32 = 1338;
 
 fn sys_chunk_spawner(mut commands: Commands, world_noise: Res<WorldNoise>) {
-    log::info!("Spawning chunks...");
-
     let mut noise_vals = vec![0.0; CHUNK_LEN * CHUNK_LEN * CHUNK_LEN];
 
     for z in 0..9 {
@@ -190,18 +188,19 @@ fn sys_chunk_spawner(mut commands: Commands, world_noise: Res<WorldNoise>) {
                     }
                 });
 
-                commands.spawn((
-                    Chunk {
-                        world_pos: [x as i32, y as i32, z as i32],
-                        voxels,
-                    },
-                    ChunkNeedsMeshing,
-                    Transform::from_xyz(x as f32 * 32., y as f32 * 32., z as f32 * 32.),
-                ));
+                commands
+                    .spawn((
+                        Chunk {
+                            world_pos: [x as i32, y as i32, z as i32],
+                            voxels,
+                        },
+                        ChunkNeedsMeshing,
+                        Transform::from_xyz(x as f32 * 32., y as f32 * 32., z as f32 * 32.),
+                    ))
+                    .observe(break_place_block);
             }
         }
     }
-    log::info!("Finished spawning chunks...");
 }
 
 fn sys_chunk_mesher(
@@ -232,6 +231,46 @@ fn sys_chunk_mesher(
     }
 }
 
+fn break_place_block(
+    click: Trigger<Pointer<Click>>,
+    mut commands: Commands,
+    mut query: Query<(Entity, &mut Chunk)>,
+) {
+    let (world_pos, block_type) = match click.button {
+        PointerButton::Primary => (
+            (click.hit.position.unwrap() - click.hit.normal.unwrap() * 0.01).floor(),
+            BlockType::Air,
+        ),
+        PointerButton::Secondary => (
+            (click.hit.position.unwrap() + click.hit.normal.unwrap() * 0.01).floor(),
+            BlockType::Stone,
+        ),
+        PointerButton::Middle => return,
+    };
+
+    let x = world_pos.x as i32;
+    let y = world_pos.y as i32;
+    let z = world_pos.z as i32;
+
+    let csize = CHUNK_LEN as i32;
+    for (id, mut chunk) in &mut query {
+        let cx = chunk.world_pos[0] * csize;
+        let cy = chunk.world_pos[1] * csize;
+        let cz = chunk.world_pos[2] * csize;
+        if x >= cx && x < cx + csize && y >= cy && y < cy + csize && z >= cz && z < cz + csize {
+            let local_x = (x - cx) as usize;
+            let local_y = (y - cy) as usize;
+            let local_z = (z - cz) as usize;
+            let idx = local_x + local_y * CHUNK_LEN + local_z * CHUNK_LEN * CHUNK_LEN;
+
+            chunk.voxels[idx] = block_type;
+
+            commands.entity(id).insert(ChunkNeedsMeshing);
+            break;
+        }
+    }
+}
+
 fn main() {
     App::new()
         .insert_resource(ClearColor(Color::BLACK))
@@ -248,6 +287,7 @@ fn main() {
             }),
             LogDiagnosticsPlugin::default(),
             FrameTimeDiagnosticsPlugin,
+            MeshPickingPlugin,
         ))
         .add_plugins(PlayerPlugin)
         .add_systems(
