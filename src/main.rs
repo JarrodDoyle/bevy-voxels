@@ -13,47 +13,11 @@ enum BlockType {
     Air,
 }
 
-#[derive(Component)]
-struct Chunk;
-
-#[derive(Component)]
-struct MainCamera;
-
-fn setup_camera(mut commands: Commands) {
-    commands.spawn((
-        Camera3d::default(),
-        Transform::from_xyz(-2.5, 4.5, 9.0).looking_at(Vec3::ZERO, Vec3::Y),
-        MainCamera,
-    ));
-}
-
-fn setup_temp_geometry(
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-) {
-    commands.spawn((
-        Mesh3d(meshes.add(Circle::new(4.0))),
-        MeshMaterial3d(materials.add(Color::WHITE)),
-        Transform::from_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2)),
-    ));
-    commands.spawn((
-        Mesh3d(meshes.add(Cuboid::new(1.0, 1.0, 1.0))),
-        MeshMaterial3d(materials.add(Color::srgb_u8(124, 144, 255))),
-        Transform::from_xyz(0.0, 0.5, 0.0),
-    ));
-    commands.spawn((
-        PointLight {
-            shadows_enabled: true,
-            ..default()
-        },
-        Transform::from_xyz(4.0, 8.0, 4.0),
-    ));
-
+fn gen_chunk_mesh(modulo: usize) -> Mesh {
     const CHUNK_LEN: usize = 32;
     let mut voxels = [BlockType::Air; CHUNK_LEN * CHUNK_LEN * CHUNK_LEN];
     (0..CHUNK_LEN * CHUNK_LEN * CHUNK_LEN).for_each(|i| {
-        if i % 3 == 0 {
+        if i % modulo == 0 {
             voxels[i] = BlockType::Stone;
         }
     });
@@ -174,19 +138,62 @@ fn setup_temp_geometry(
         }
     }
 
-    let mesh = Mesh::new(
+    Mesh::new(
         PrimitiveTopology::TriangleList,
         RenderAssetUsages::RENDER_WORLD,
     )
     .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, vs)
     .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, ns)
-    .with_inserted_indices(Indices::U32(is));
+    .with_inserted_indices(Indices::U32(is))
+}
 
+fn setup_temp_geometry(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
     commands.spawn((
-        Mesh3d(meshes.add(mesh)),
-        MeshMaterial3d(materials.add(Color::srgb_u8(200, 100, 90))),
-        Transform::from_xyz(0.0, 0.0, 0.0),
+        Mesh3d(meshes.add(Circle::new(4.0))),
+        MeshMaterial3d(materials.add(Color::WHITE)),
+        Transform::from_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2)),
     ));
+    commands.spawn((
+        Mesh3d(meshes.add(Cuboid::new(1.0, 1.0, 1.0))),
+        MeshMaterial3d(materials.add(Color::srgb_u8(124, 144, 255))),
+        Transform::from_xyz(0.0, 0.5, 0.0),
+    ));
+    commands.spawn((
+        PointLight {
+            shadows_enabled: true,
+            ..default()
+        },
+        Transform::from_xyz(-8., 8.0, 4.0),
+    ));
+
+    let colors = [
+        Color::srgb_u8(228, 59, 68),
+        Color::srgb_u8(62, 137, 72),
+        Color::srgb_u8(0, 153, 219),
+        Color::srgb_u8(192, 203, 220),
+        Color::srgb_u8(254, 231, 97),
+        Color::srgb_u8(104, 56, 108),
+    ];
+
+    let primes = [3, 5, 7, 11, 13, 17, 19, 23];
+
+    let mut i = 0;
+    for z in 0..2 {
+        for y in 0..2 {
+            for x in 0..2 {
+                commands.spawn((
+                    Mesh3d(meshes.add(gen_chunk_mesh(primes[i % primes.len()]))),
+                    MeshMaterial3d(materials.add(colors[i % colors.len()])),
+                    Transform::from_xyz(x as f32 * 32., y as f32 * 32., z as f32 * 32.),
+                ));
+                i += 1;
+            }
+        }
+    }
 }
 
 fn toggle_vsync(input: Res<ButtonInput<KeyCode>>, mut windows: Query<&mut Window>) {
