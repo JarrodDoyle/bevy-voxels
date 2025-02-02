@@ -1,5 +1,10 @@
-use bevy::{asset::Handle, ecs::system::Resource, prelude::*};
-use bevy_asset_loader::asset_collection::AssetCollection;
+use bevy::{
+    asset::{AssetPath, Handle},
+    ecs::system::Resource,
+    prelude::*,
+    utils::HashMap,
+};
+use bevy_asset_loader::{asset_collection::AssetCollection, mapped::MapKey};
 
 use crate::model::Model;
 
@@ -12,9 +17,28 @@ pub struct ModelAssets {
 
 #[derive(AssetCollection, Resource)]
 pub struct TextureAssets {
-    #[asset(path = "textures/blocks", collection(typed))]
-    pub blocks: Vec<Handle<Image>>,
+    #[asset(path = "textures/blocks", collection(typed, mapped))]
+    pub blocks: HashMap<AssetFileStem, Handle<Image>>,
+}
+
+#[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct AssetFileStem(pub String);
+impl MapKey for AssetFileStem {
+    #[inline]
+    fn from_asset_path(path: &AssetPath) -> Self {
+        Self(
+            path.path()
+                .file_stem()
+                .unwrap()
+                .to_str()
+                .expect("Path should be valid UTF-8")
+                .into(),
+        )
+    }
 }
 
 #[derive(Resource)]
 pub struct BlockArrayTextureHandle(pub Handle<Image>);
+
+#[derive(Resource)]
+pub struct BlockTextureIds(pub HashMap<String, u32>);

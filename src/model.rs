@@ -23,6 +23,7 @@ impl Model {
         uvs: &mut Vec<[f32; 2]>,
         ts: &mut Vec<u32>,
         is: &mut Vec<u32>,
+        texture_id: u32,
     ) {
         let f_len = self.faces.len();
         for i in 0..f_len {
@@ -42,7 +43,7 @@ impl Model {
                 ]);
                 ns.push(face.normal);
                 uvs.push(v.uv);
-                ts.push(0);
+                ts.push(texture_id);
             }
 
             for j in 1..(fv_len as u32 - 1) {

@@ -1,7 +1,7 @@
 mod assets;
 mod model;
 
-use assets::{BlockArrayTextureHandle, ModelAssets, TextureAssets};
+use assets::{BlockArrayTextureHandle, BlockTextureIds, ModelAssets, TextureAssets};
 use bevy::{
     asset::RenderAssetUsages,
     diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin},
@@ -126,7 +126,12 @@ impl Material for ArrayTextureMaterial {
 
 const ATTRIBUTE_TEXTURE: MeshVertexAttribute =
     MeshVertexAttribute::new("texure_id", 988540917, VertexFormat::Uint32);
-fn gen_chunk_mesh(world_pos: &[i32; 3], storage: &VoxelStorage, model: &Model) -> Option<Mesh> {
+fn gen_chunk_mesh(
+    world_pos: &[i32; 3],
+    storage: &VoxelStorage,
+    model: &Model,
+    block_texture_ids: &BlockTextureIds,
+) -> Option<Mesh> {
     const NEIGHBOUR_OFFSETS: [[i32; 3]; 6] = [
         [-1, 0, 0], // left
         [1, 0, 0],  // right
@@ -208,6 +213,13 @@ fn gen_chunk_mesh(world_pos: &[i32; 3], storage: &VoxelStorage, model: &Model) -
                 let yf = y as f32;
                 let zf = z as f32;
 
+                let texture_id = match block_type.unwrap() {
+                    BlockType::Grass => block_texture_ids.0["grass-top"],
+                    BlockType::Dirt => block_texture_ids.0["dirt"],
+                    BlockType::Stone => block_texture_ids.0["stone"],
+                    _ => 0,
+                };
+
                 model.mesh(
                     &cull,
                     &[xf, yf, zf],
@@ -216,6 +228,7 @@ fn gen_chunk_mesh(world_pos: &[i32; 3], storage: &VoxelStorage, model: &Model) -
                     &mut uvs,
                     &mut ts,
                     &mut is,
+                    texture_id,
                 );
             }
         }
@@ -269,21 +282,24 @@ fn sys_create_array_texture(
         RenderAssetUsages::default(),
     );
 
-    let tcount = textures.blocks.len() as u32;
-    for z in 0..tcount {
-        let t = images.get(textures.blocks[z as usize].id()).unwrap();
+    let mut id_map = HashMap::<String, u32>::new();
+    for (z, k) in textures.blocks.keys().enumerate() {
+        id_map.insert(k.0.clone(), z as u32);
+
+        let t = images.get(textures.blocks[k].id()).unwrap();
         for y in 0..SIZE {
             for x in 0..SIZE {
                 let c = t.get_color_at(x, y).unwrap();
-                let _ = image.set_color_at(x, y + z * SIZE, c);
+                let _ = image.set_color_at(x, y + z as u32 * SIZE, c);
             }
         }
     }
 
-    image.reinterpret_stacked_2d_as_array(tcount);
+    image.reinterpret_stacked_2d_as_array(textures.blocks.len() as u32);
 
     let handle = asset_server.add(image);
     commands.insert_resource(BlockArrayTextureHandle(handle));
+    commands.insert_resource(BlockTextureIds(id_map));
 }
 
 fn toggle_vsync(input: Res<ButtonInput<KeyCode>>, mut windows: Query<&mut Window>) {
@@ -378,9 +394,10 @@ fn sys_chunk_spawner(mut commands: Commands, world_noise: Res<WorldNoise>) {
 fn sys_chunk_mesher(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
-    block_array_texture: ResMut<BlockArrayTextureHandle>,
+    block_array_texture: Res<BlockArrayTextureHandle>,
+    block_texture_ids: Res<BlockTextureIds>,
     model_handle: Res<ModelAssets>,
-    model: Res<Assets<Model>>,
+    res_model: Res<Assets<Model>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ArrayTextureMaterial>>,
     query_storage: Query<&VoxelStorage>,
@@ -390,7 +407,7 @@ fn sys_chunk_mesher(
         return;
     }
 
-    let raw_model = model.get(model_handle.folder[0].id()).unwrap();
+    let model = res_model.get(model_handle.folder[0].id()).unwrap();
     let voxel_storage = query_storage.single();
 
     let _colors = [
@@ -407,7 +424,9 @@ fn sys_chunk_mesher(
     });
 
     for (id, chunk, _) in &chunks_query {
-        if let Some(mesh) = gen_chunk_mesh(&chunk.world_pos, voxel_storage, raw_model) {
+        if let Some(mesh) =
+            gen_chunk_mesh(&chunk.world_pos, voxel_storage, model, &block_texture_ids)
+        {
             commands.entity(id).remove::<ChunkNeedsMeshing>().insert((
                 Mesh3d(meshes.add(mesh)),
                 MeshMaterial3d(material_handle.clone()),
