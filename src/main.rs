@@ -1,7 +1,8 @@
 mod assets;
+mod block_type;
 mod model;
 
-use assets::{BlockArrayTextureHandle, BlockTextureIds, ModelAssets, TextureAssets};
+use assets::{BlockArrayTextureHandle, BlockAssets, BlockTextureIds, ModelAssets, TextureAssets};
 use bevy::{
     asset::RenderAssetUsages,
     diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin},
@@ -20,6 +21,7 @@ use bevy_asset_loader::loading_state::{
 };
 use bevy_common_assets::ron::RonAssetPlugin;
 use bevy_flycam::PlayerPlugin;
+use block_type::Block;
 use fastnoise2::SafeNode;
 use model::Model;
 
@@ -522,6 +524,7 @@ fn main() {
             MeshPickingPlugin,
             MaterialPlugin::<ArrayTextureMaterial>::default(),
             RonAssetPlugin::<Model>::new(&["model.ron"]),
+            RonAssetPlugin::<Block>::new(&["block.ron"]),
         ))
         .add_plugins(PlayerPlugin)
         .init_state::<States>()
@@ -529,7 +532,8 @@ fn main() {
             LoadingState::new(States::AssetLoading)
                 .continue_to_state(States::Loaded)
                 .load_collection::<ModelAssets>()
-                .load_collection::<TextureAssets>(),
+                .load_collection::<TextureAssets>()
+                .load_collection::<BlockAssets>(),
         )
         .add_systems(Startup, (setup_noise, sys_chunk_spawner).chain())
         .add_systems(

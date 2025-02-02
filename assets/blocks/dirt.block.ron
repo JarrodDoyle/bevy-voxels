@@ -1,4 +1,4 @@
-BlockType(
+Block(
     identifier: "dirt",
     model: "cube",
     textures: {

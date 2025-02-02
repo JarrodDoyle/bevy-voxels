@@ -6,7 +6,7 @@ use bevy::{
 };
 use bevy_asset_loader::{asset_collection::AssetCollection, mapped::MapKey};
 
-use crate::model::Model;
+use crate::{block_type::Block, model::Model};
 
 // TODO: Use collections as maps
 #[derive(AssetCollection, Resource)]
@@ -19,6 +19,12 @@ pub struct ModelAssets {
 pub struct TextureAssets {
     #[asset(path = "textures/blocks", collection(typed, mapped))]
     pub blocks: HashMap<AssetFileStem, Handle<Image>>,
+}
+
+#[derive(AssetCollection, Resource)]
+pub struct BlockAssets {
+    #[asset(path = "blocks", collection(typed, mapped))]
+    pub folder: HashMap<AssetFileStem, Handle<Block>>,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
