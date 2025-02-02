@@ -146,30 +146,6 @@ fn gen_chunk_mesh(voxels: &[BlockType]) -> Option<Mesh> {
     )
 }
 
-fn setup_temp_geometry(
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-) {
-    commands.spawn((
-        Mesh3d(meshes.add(Circle::new(4.0))),
-        MeshMaterial3d(materials.add(Color::WHITE)),
-        Transform::from_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2)),
-    ));
-    commands.spawn((
-        Mesh3d(meshes.add(Cuboid::new(1.0, 1.0, 1.0))),
-        MeshMaterial3d(materials.add(Color::srgb_u8(124, 144, 255))),
-        Transform::from_xyz(0.0, 0.5, 0.0),
-    ));
-    commands.spawn((
-        PointLight {
-            shadows_enabled: true,
-            ..default()
-        },
-        Transform::from_xyz(-8., 8.0, 4.0),
-    ));
-}
-
 fn setup_noise(mut commands: Commands) {
     let encoded_node_tree = "DQADAAAAAAAAQCkAAAAAAD8AAAAAAA==";
     let node = SafeNode::from_encoded_node_tree(encoded_node_tree).unwrap();
@@ -355,13 +331,7 @@ fn main() {
         .add_plugins(PlayerPlugin)
         .add_systems(
             Startup,
-            (
-                setup_assets,
-                setup_noise,
-                setup_temp_geometry,
-                sys_chunk_spawner,
-            )
-                .chain(),
+            (setup_assets, setup_noise, sys_chunk_spawner).chain(),
         )
         .add_systems(
             Update,
