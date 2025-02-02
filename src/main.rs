@@ -290,7 +290,12 @@ fn sys_chunk_mesher(
         return;
     }
 
-    let model = res_model.get(model_handle.folder[0].id()).unwrap();
+    let mut model_map = HashMap::<String, u32>::new();
+    for i in 0..model_handle.folder.len() {
+        let m = res_model.get(model_handle.folder[i].id()).unwrap();
+        model_map.insert(m.identifier.clone(), i as u32);
+    }
+
     let voxel_storage = query_storage.single();
 
     let _colors = [
@@ -408,6 +413,11 @@ fn sys_chunk_mesher(
                     for k in textures.keys() {
                         texture_map.insert(k.to_string(), block_texture_ids.0[&textures[k]]);
                     }
+
+                    let model_name = &block.unwrap().model.clone().unwrap();
+                    let model = res_model
+                        .get(model_handle.folder[model_map[model_name] as usize].id())
+                        .unwrap();
 
                     model.mesh(
                         &cull,

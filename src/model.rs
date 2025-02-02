@@ -2,7 +2,7 @@ use bevy::{prelude::*, utils::HashMap};
 
 #[derive(serde::Deserialize, Asset, TypePath)]
 pub struct Model {
-    identifier: String,
+    pub identifier: String,
     faces: Vec<Face>,
 }
 
