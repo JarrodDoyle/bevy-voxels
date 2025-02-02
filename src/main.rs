@@ -6,6 +6,7 @@ use bevy::{
         mesh::{Indices, MeshVertexAttribute, PrimitiveTopology},
         render_resource::{AsBindGroup, ShaderRef, VertexFormat},
     },
+    utils::hashbrown::HashMap,
     window::PresentMode,
 };
 use bevy_flycam::PlayerPlugin;
@@ -25,9 +26,32 @@ struct WorldNoise {
 }
 
 #[derive(Component)]
+struct VoxelStorage {
+    chunk_len: usize,
+    voxels: HashMap<[i32; 3], Vec<BlockType>>,
+}
+
+impl VoxelStorage {
+    fn get_voxel(
+        &self,
+        chunk_pos: &[i32; 3],
+        local_x: usize,
+        local_y: usize,
+        local_z: usize,
+    ) -> Option<BlockType> {
+        self.voxels
+            .get(chunk_pos)
+            .map(|chunk| chunk[self.local_pos_to_idx(local_x, local_y, local_z)])
+    }
+
+    fn local_pos_to_idx(&self, x: usize, y: usize, z: usize) -> usize {
+        x + y * self.chunk_len + z * self.chunk_len * self.chunk_len
+    }
+}
+
+#[derive(Component)]
 struct Chunk {
     world_pos: [i32; 3],
-    voxels: Vec<BlockType>,
 }
 
 #[derive(Component)]
@@ -74,14 +98,14 @@ impl Material for ArrayTextureMaterial {
 
 const ATTRIBUTE_TEXTURE: MeshVertexAttribute =
     MeshVertexAttribute::new("texure_id", 988540917, VertexFormat::Uint32);
-fn gen_chunk_mesh(voxels: &[BlockType]) -> Option<Mesh> {
-    const NEIGHBOUR_OFFSETS: [(i32, i32, i32); 6] = [
-        (1, 0, 0),  // right
-        (-1, 0, 0), // left
-        (0, -1, 0), // down
-        (0, 1, 0),  // up
-        (0, 0, 1),  // forward
-        (0, 0, -1), // back
+fn gen_chunk_mesh(world_pos: &[i32; 3], storage: &VoxelStorage) -> Option<Mesh> {
+    const NEIGHBOUR_OFFSETS: [[i32; 3]; 6] = [
+        [1, 0, 0],  // right
+        [-1, 0, 0], // left
+        [0, -1, 0], // down
+        [0, 1, 0],  // up
+        [0, 0, 1],  // forward
+        [0, 0, -1], // back
     ];
     const RAW_VERTICES: [(f32, f32, f32); 8] = [
         (1., 1., 1.),
@@ -97,16 +121,56 @@ fn gen_chunk_mesh(voxels: &[BlockType]) -> Option<Mesh> {
         0, 1, 2, 3, 6, 7, 4, 5, 7, 2, 1, 4, 3, 6, 5, 0, 5, 4, 1, 0, 3, 2, 7, 6,
     ];
 
+    let get_neighbour_pos =
+        |chunk_len: usize, chunk_pos: &[i32; 3], local_pos: &[i32; 3], offset: &[i32; 3]| {
+            let mut local_x = local_pos[0] + offset[0];
+            let mut local_y = local_pos[1] + offset[1];
+            let mut local_z = local_pos[2] + offset[2];
+
+            let mut new_chunk_pos = [chunk_pos[0], chunk_pos[1], chunk_pos[2]];
+            if local_x < 0 {
+                new_chunk_pos[0] -= 1;
+                local_x += chunk_len as i32;
+            }
+            if local_y < 0 {
+                new_chunk_pos[1] -= 1;
+                local_y += chunk_len as i32;
+            }
+            if local_z < 0 {
+                new_chunk_pos[2] -= 1;
+                local_z += chunk_len as i32;
+            }
+            if local_x >= chunk_len as i32 {
+                new_chunk_pos[0] += 1;
+                local_x -= chunk_len as i32;
+            }
+            if local_y >= chunk_len as i32 {
+                new_chunk_pos[1] += 1;
+                local_y -= chunk_len as i32;
+            }
+            if local_z >= chunk_len as i32 {
+                new_chunk_pos[2] += 1;
+                local_z -= chunk_len as i32;
+            }
+
+            (
+                new_chunk_pos,
+                local_x as usize,
+                local_y as usize,
+                local_z as usize,
+            )
+        };
+
     let mut vs: Vec<[f32; 3]> = vec![];
     let mut is = vec![];
     let mut ns = vec![];
     let mut uvs = vec![];
     let mut ts = vec![];
-    for z in 0..CHUNK_LEN {
-        for y in 0..CHUNK_LEN {
-            for x in 0..CHUNK_LEN {
-                let idx = x + y * CHUNK_LEN + z * CHUNK_LEN * CHUNK_LEN;
-                if voxels[idx] == BlockType::Air {
+    for z in 0..storage.chunk_len {
+        for y in 0..storage.chunk_len {
+            for x in 0..storage.chunk_len {
+                let block_type = storage.get_voxel(world_pos, x, y, z);
+                if block_type.is_none() || block_type.unwrap() == BlockType::Air {
                     continue;
                 }
 
@@ -116,26 +180,22 @@ fn gen_chunk_mesh(voxels: &[BlockType]) -> Option<Mesh> {
 
                 for i in 0..NEIGHBOUR_OFFSETS.len() {
                     let offset = NEIGHBOUR_OFFSETS[i];
-                    let nx = (x as i32) + offset.0;
-                    let ny = (y as i32) + offset.1;
-                    let nz = (z as i32) + offset.2;
-                    let nidx =
-                        nx + ny * CHUNK_LEN as i32 + nz * CHUNK_LEN as i32 * CHUNK_LEN as i32;
+                    let (n_chunk_pos, n_local_x, n_local_y, n_local_z) = get_neighbour_pos(
+                        storage.chunk_len,
+                        world_pos,
+                        &[x as i32, y as i32, z as i32],
+                        &offset,
+                    );
 
-                    if nx < 0
-                        || nx >= CHUNK_LEN as i32
-                        || ny < 0
-                        || ny >= CHUNK_LEN as i32
-                        || nz < 0
-                        || nz >= CHUNK_LEN as i32
-                        || voxels[nidx as usize] == BlockType::Air
-                    {
+                    let n_block_type =
+                        storage.get_voxel(&n_chunk_pos, n_local_x, n_local_y, n_local_z);
+                    if n_block_type.is_none() || n_block_type.unwrap() == BlockType::Air {
                         let vcount = vs.len() as u32;
                         for j in 0..4 {
                             let raw_v = RAW_VERTICES[RAW_INDICES[i * 4 + j]];
                             vs.push([xf + raw_v.0, yf + raw_v.1, zf + raw_v.2]);
-                            ns.push([offset.0 as f32, offset.1 as f32, offset.2 as f32]);
-                            ts.push(voxels[idx] as u32);
+                            ns.push([offset[0] as f32, offset[1] as f32, offset[2] as f32]);
+                            ts.push(block_type.unwrap() as u32);
                         }
 
                         uvs.push([0., 0.]);
@@ -228,6 +288,8 @@ fn chunk_pos_to_idx(x: usize, y: usize, z: usize) -> usize {
 }
 
 fn sys_chunk_spawner(mut commands: Commands, world_noise: Res<WorldNoise>) {
+    let mut chunk_voxel_hashmap = HashMap::<[i32; 3], Vec<BlockType>>::new();
+
     let mut noise_vals = vec![0.0; CHUNK_LEN * CHUNK_LEN * CHUNK_LEN];
 
     for z in 0..3 {
@@ -276,12 +338,12 @@ fn sys_chunk_spawner(mut commands: Commands, world_noise: Res<WorldNoise>) {
                     }
                 }
 
+                let world_pos = [x as i32, y as i32, z as i32];
+                chunk_voxel_hashmap.insert(world_pos, voxels);
+
                 commands
                     .spawn((
-                        Chunk {
-                            world_pos: [x as i32, y as i32, z as i32],
-                            voxels,
-                        },
+                        Chunk { world_pos },
                         ChunkNeedsMeshing,
                         Transform::from_xyz(x as f32 * 32., y as f32 * 32., z as f32 * 32.),
                     ))
@@ -289,6 +351,11 @@ fn sys_chunk_spawner(mut commands: Commands, world_noise: Res<WorldNoise>) {
             }
         }
     }
+
+    commands.spawn(VoxelStorage {
+        chunk_len: 32,
+        voxels: chunk_voxel_hashmap,
+    });
 }
 
 fn sys_chunk_mesher(
@@ -296,11 +363,14 @@ fn sys_chunk_mesher(
     loading_texture: ResMut<LoadingTexture>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ArrayTextureMaterial>>,
+    query_storage: Query<&VoxelStorage>,
     chunks_query: Query<(Entity, &Chunk, &ChunkNeedsMeshing)>,
 ) {
     if !loading_texture.is_loaded {
         return;
     }
+
+    let voxel_storage = query_storage.single();
 
     let _colors = [
         Color::srgb_u8(228, 59, 68),
@@ -316,7 +386,7 @@ fn sys_chunk_mesher(
     });
 
     for (id, chunk, _) in &chunks_query {
-        if let Some(mesh) = gen_chunk_mesh(&chunk.voxels) {
+        if let Some(mesh) = gen_chunk_mesh(&chunk.world_pos, voxel_storage) {
             commands.entity(id).remove::<ChunkNeedsMeshing>().insert((
                 Mesh3d(meshes.add(mesh)),
                 MeshMaterial3d(material_handle.clone()),
@@ -331,8 +401,11 @@ fn sys_chunk_mesher(
 fn break_place_block(
     click: Trigger<Pointer<Click>>,
     mut commands: Commands,
-    mut query: Query<(Entity, &mut Chunk)>,
+    mut query_storage: Query<&mut VoxelStorage>,
+    query_chunk: Query<(Entity, &Chunk)>,
 ) {
+    let mut voxel_storage = query_storage.single_mut();
+
     let (world_pos, block_type) = match click.button {
         PointerButton::Primary => (
             (click.hit.position.unwrap() - click.hit.normal.unwrap() * 0.01).floor(),
@@ -353,12 +426,37 @@ fn break_place_block(
     let local_y = (world_pos[1] as i32 - cy * CHUNK_LEN as i32) as usize;
     let local_z = (world_pos[2] as i32 - cz * CHUNK_LEN as i32) as usize;
 
-    for (id, mut chunk) in &mut query {
+    let mut needs_meshing = vec![[cx, cy, cz]];
+    for (_, chunk) in &query_chunk {
         if cx == chunk.world_pos[0] && cy == chunk.world_pos[1] && cz == chunk.world_pos[2] {
             let idx = local_x + local_y * CHUNK_LEN + local_z * CHUNK_LEN * CHUNK_LEN;
-            chunk.voxels[idx] = block_type;
+            let chunk_voxels = voxel_storage.voxels.get_mut(&chunk.world_pos).unwrap();
+            chunk_voxels[idx] = block_type;
+
+            if local_x == 0 {
+                needs_meshing.push([cx - 1, cy, cz]);
+            }
+            if local_x == CHUNK_LEN - 1 {
+                needs_meshing.push([cx + 1, cy, cz]);
+            }
+            if local_y == 0 {
+                needs_meshing.push([cx, cy - 1, cz]);
+            }
+            if local_y == CHUNK_LEN - 1 {
+                needs_meshing.push([cx, cy + 1, cz]);
+            }
+            if local_z == 0 {
+                needs_meshing.push([cx, cy, cz - 1]);
+            }
+            if local_z == CHUNK_LEN - 1 {
+                needs_meshing.push([cx, cy, cz + 1]);
+            }
+        }
+    }
+
+    for (id, chunk) in &query_chunk {
+        if needs_meshing.contains(&chunk.world_pos) {
             commands.entity(id).insert(ChunkNeedsMeshing);
-            break;
         }
     }
 }
