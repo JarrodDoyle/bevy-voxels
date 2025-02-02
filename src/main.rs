@@ -223,6 +223,10 @@ const CHUNK_LEN: usize = 32;
 const FREQUENCY: f32 = 0.005;
 const SEED: i32 = 1338;
 
+fn chunk_pos_to_idx(x: usize, y: usize, z: usize) -> usize {
+    x + y * CHUNK_LEN + z * CHUNK_LEN * CHUNK_LEN
+}
+
 fn sys_chunk_spawner(mut commands: Commands, world_noise: Res<WorldNoise>) {
     let mut noise_vals = vec![0.0; CHUNK_LEN * CHUNK_LEN * CHUNK_LEN];
 
@@ -245,12 +249,32 @@ fn sys_chunk_spawner(mut commands: Commands, world_noise: Res<WorldNoise>) {
                 (0..CHUNK_LEN * CHUNK_LEN * CHUNK_LEN).for_each(|i| {
                     if noise_vals[i] > 0. {
                         voxels[i] = BlockType::Stone;
-                        let above = i + CHUNK_LEN;
-                        if above < noise_vals.len() && noise_vals[above] <= 0. {
-                            voxels[i] = BlockType::Dirt;
-                        }
                     }
                 });
+
+                for z in 0..CHUNK_LEN {
+                    for y in 0..CHUNK_LEN {
+                        for x in 0..CHUNK_LEN {
+                            let i = chunk_pos_to_idx(x, y, z);
+                            if voxels[i] == BlockType::Air {
+                                continue;
+                            }
+
+                            for dy in 1..4 {
+                                if y + dy < CHUNK_LEN
+                                    && voxels[chunk_pos_to_idx(x, y + dy, z)] == BlockType::Air
+                                {
+                                    voxels[i] = if dy == 1 {
+                                        BlockType::Grass
+                                    } else {
+                                        BlockType::Dirt
+                                    };
+                                    break;
+                        }
+                    }
+                        }
+                    }
+                }
 
                 commands
                     .spawn((
