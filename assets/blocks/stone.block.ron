@@ -1,6 +1,6 @@
 Block(
     identifier: "stone",
-    model: "cube",
+    model: Some("cube"),
     textures: {
         "default": "stone",
     },

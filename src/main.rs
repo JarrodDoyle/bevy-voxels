@@ -21,17 +21,9 @@ use bevy_asset_loader::loading_state::{
 };
 use bevy_common_assets::ron::RonAssetPlugin;
 use bevy_flycam::PlayerPlugin;
-use block_type::Block;
+use block_type::{Block, BlockType};
 use fastnoise2::SafeNode;
 use model::Model;
-
-#[derive(Clone, Copy, PartialEq)]
-enum BlockType {
-    Grass,
-    Dirt,
-    Stone,
-    Air,
-}
 
 #[derive(Resource)]
 struct WorldNoise {
@@ -128,130 +120,6 @@ impl Material for ArrayTextureMaterial {
 
 const ATTRIBUTE_TEXTURE: MeshVertexAttribute =
     MeshVertexAttribute::new("texure_id", 988540917, VertexFormat::Uint32);
-fn gen_chunk_mesh(
-    world_pos: &[i32; 3],
-    storage: &VoxelStorage,
-    model: &Model,
-    block_texture_ids: &BlockTextureIds,
-) -> Option<Mesh> {
-    const NEIGHBOUR_OFFSETS: [[i32; 3]; 6] = [
-        [-1, 0, 0], // left
-        [1, 0, 0],  // right
-        [0, 1, 0],  // up
-        [0, -1, 0], // down
-        [0, 0, 1],  // front
-        [0, 0, -1], // back
-    ];
-
-    let get_neighbour_pos =
-        |chunk_len: usize, chunk_pos: &[i32; 3], local_pos: &[i32; 3], offset: &[i32; 3]| {
-            let mut local_x = local_pos[0] + offset[0];
-            let mut local_y = local_pos[1] + offset[1];
-            let mut local_z = local_pos[2] + offset[2];
-
-            let mut new_chunk_pos = [chunk_pos[0], chunk_pos[1], chunk_pos[2]];
-            if local_x < 0 {
-                new_chunk_pos[0] -= 1;
-                local_x += chunk_len as i32;
-            }
-            if local_y < 0 {
-                new_chunk_pos[1] -= 1;
-                local_y += chunk_len as i32;
-            }
-            if local_z < 0 {
-                new_chunk_pos[2] -= 1;
-                local_z += chunk_len as i32;
-            }
-            if local_x >= chunk_len as i32 {
-                new_chunk_pos[0] += 1;
-                local_x -= chunk_len as i32;
-            }
-            if local_y >= chunk_len as i32 {
-                new_chunk_pos[1] += 1;
-                local_y -= chunk_len as i32;
-            }
-            if local_z >= chunk_len as i32 {
-                new_chunk_pos[2] += 1;
-                local_z -= chunk_len as i32;
-            }
-
-            (
-                new_chunk_pos,
-                local_x as usize,
-                local_y as usize,
-                local_z as usize,
-            )
-        };
-
-    let mut vs: Vec<[f32; 3]> = vec![];
-    let mut is = vec![];
-    let mut ns = vec![];
-    let mut uvs = vec![];
-    let mut ts = vec![];
-    for z in 0..storage.chunk_len {
-        for y in 0..storage.chunk_len {
-            for x in 0..storage.chunk_len {
-                let block_type = storage.get_voxel(world_pos, x, y, z);
-                if block_type.is_none() || block_type.unwrap() == BlockType::Air {
-                    continue;
-                }
-
-                let mut cull = [false; 6];
-                for i in 0..NEIGHBOUR_OFFSETS.len() {
-                    let offset = NEIGHBOUR_OFFSETS[i];
-                    let (n_chunk_pos, n_local_x, n_local_y, n_local_z) = get_neighbour_pos(
-                        storage.chunk_len,
-                        world_pos,
-                        &[x as i32, y as i32, z as i32],
-                        &offset,
-                    );
-
-                    let n_block_type =
-                        storage.get_voxel(&n_chunk_pos, n_local_x, n_local_y, n_local_z);
-                    cull[i] = n_block_type.is_some_and(|b| b != BlockType::Air);
-                }
-
-                let xf = x as f32;
-                let yf = y as f32;
-                let zf = z as f32;
-
-                let texture_id = match block_type.unwrap() {
-                    BlockType::Grass => block_texture_ids.0["grass-top"],
-                    BlockType::Dirt => block_texture_ids.0["dirt"],
-                    BlockType::Stone => block_texture_ids.0["stone"],
-                    _ => 0,
-                };
-
-                model.mesh(
-                    &cull,
-                    &[xf, yf, zf],
-                    &mut vs,
-                    &mut ns,
-                    &mut uvs,
-                    &mut ts,
-                    &mut is,
-                    texture_id,
-                );
-            }
-        }
-    }
-
-    if vs.is_empty() {
-        return None;
-    }
-
-    Some(
-        Mesh::new(
-            PrimitiveTopology::TriangleList,
-            RenderAssetUsages::default(),
-        )
-        .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, vs)
-        .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, ns)
-        .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, uvs)
-        .with_inserted_attribute(ATTRIBUTE_TEXTURE, ts)
-        .with_inserted_indices(Indices::U32(is)),
-    )
-}
 
 fn setup_noise(mut commands: Commands) {
     let encoded_node_tree = "DQADAAAAAAAAQCkAAAAAAD8AAAAAAA==";
@@ -317,11 +185,22 @@ fn toggle_vsync(input: Res<ButtonInput<KeyCode>>, mut windows: Query<&mut Window
     }
 }
 
-fn sys_chunk_spawner(mut commands: Commands, world_noise: Res<WorldNoise>) {
+fn sys_chunk_spawner(
+    mut commands: Commands,
+    world_noise: Res<WorldNoise>,
+    blocks: Res<BlockAssets>,
+    block_handles: Res<Assets<Block>>,
+) {
     let mut storage = VoxelStorage {
         chunk_len: 32,
         voxels: HashMap::<[i32; 3], Vec<BlockType>>::new(),
     };
+
+    let mut block_map = HashMap::<String, u32>::new();
+    for i in 0..blocks.folder.len() {
+        let b = block_handles.get(blocks.folder[i].id()).unwrap();
+        block_map.insert(b.identifier.clone(), i as u32);
+    }
 
     const FREQUENCY: f32 = 0.005;
     const SEED: i32 = 1338;
@@ -344,10 +223,10 @@ fn sys_chunk_spawner(mut commands: Commands, world_noise: Res<WorldNoise>) {
                     SEED,
                 );
 
-                let mut chunk_voxels = vec![BlockType::Air; voxels_per_chunk];
+                let mut chunk_voxels = vec![block_map["air"]; voxels_per_chunk];
                 (0..voxels_per_chunk).for_each(|i| {
                     if noise_vals[i] > 0. {
-                        chunk_voxels[i] = BlockType::Stone;
+                        chunk_voxels[i] = block_map["stone"];
                     }
                 });
 
@@ -355,19 +234,19 @@ fn sys_chunk_spawner(mut commands: Commands, world_noise: Res<WorldNoise>) {
                     for y in 0..storage.chunk_len {
                         for x in 0..storage.chunk_len {
                             let i = storage.local_pos_to_idx(x, y, z);
-                            if chunk_voxels[i] == BlockType::Air {
+                            if chunk_voxels[i] == block_map["air"] {
                                 continue;
                             }
 
                             for dy in 1..4 {
                                 if y + dy < storage.chunk_len
                                     && chunk_voxels[storage.local_pos_to_idx(x, y + dy, z)]
-                                        == BlockType::Air
+                                        == block_map["air"]
                                 {
                                     chunk_voxels[i] = if dy == 1 {
-                                        BlockType::Grass
+                                        block_map["grass"]
                                     } else {
-                                        BlockType::Dirt
+                                        block_map["dirt"]
                                     };
                                     break;
                                 }
@@ -400,6 +279,8 @@ fn sys_chunk_mesher(
     block_texture_ids: Res<BlockTextureIds>,
     model_handle: Res<ModelAssets>,
     res_model: Res<Assets<Model>>,
+    blocks: Res<BlockAssets>,
+    block_assets: Res<Assets<Block>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ArrayTextureMaterial>>,
     query_storage: Query<&VoxelStorage>,
@@ -426,9 +307,132 @@ fn sys_chunk_mesher(
     });
 
     for (id, chunk, _) in &chunks_query {
-        if let Some(mesh) =
-            gen_chunk_mesh(&chunk.world_pos, voxel_storage, model, &block_texture_ids)
-        {
+        let world_pos: &[i32; 3] = &chunk.world_pos;
+        let block_texture_ids: &BlockTextureIds = &block_texture_ids;
+        let blocks: &BlockAssets = &blocks;
+        const NEIGHBOUR_OFFSETS: [[i32; 3]; 6] = [
+            [-1, 0, 0], // left
+            [1, 0, 0],  // right
+            [0, 1, 0],  // up
+            [0, -1, 0], // down
+            [0, 0, 1],  // front
+            [0, 0, -1], // back
+        ];
+
+        let get_neighbour_pos =
+            |chunk_len: usize, chunk_pos: &[i32; 3], local_pos: &[i32; 3], offset: &[i32; 3]| {
+                let mut local_x = local_pos[0] + offset[0];
+                let mut local_y = local_pos[1] + offset[1];
+                let mut local_z = local_pos[2] + offset[2];
+
+                let mut new_chunk_pos = [chunk_pos[0], chunk_pos[1], chunk_pos[2]];
+                if local_x < 0 {
+                    new_chunk_pos[0] -= 1;
+                    local_x += chunk_len as i32;
+                }
+                if local_y < 0 {
+                    new_chunk_pos[1] -= 1;
+                    local_y += chunk_len as i32;
+                }
+                if local_z < 0 {
+                    new_chunk_pos[2] -= 1;
+                    local_z += chunk_len as i32;
+                }
+                if local_x >= chunk_len as i32 {
+                    new_chunk_pos[0] += 1;
+                    local_x -= chunk_len as i32;
+                }
+                if local_y >= chunk_len as i32 {
+                    new_chunk_pos[1] += 1;
+                    local_y -= chunk_len as i32;
+                }
+                if local_z >= chunk_len as i32 {
+                    new_chunk_pos[2] += 1;
+                    local_z -= chunk_len as i32;
+                }
+
+                (
+                    new_chunk_pos,
+                    local_x as usize,
+                    local_y as usize,
+                    local_z as usize,
+                )
+            };
+
+        let mut vs: Vec<[f32; 3]> = vec![];
+        let mut is = vec![];
+        let mut ns = vec![];
+        let mut uvs = vec![];
+        let mut ts = vec![];
+        for z in 0..voxel_storage.chunk_len {
+            for y in 0..voxel_storage.chunk_len {
+                for x in 0..voxel_storage.chunk_len {
+                    let block = match voxel_storage.get_voxel(world_pos, x, y, z) {
+                        Some(i) => block_assets.get(blocks.folder[i as usize].id()),
+                        None => None,
+                    };
+
+                    if block.is_none_or(|b| b.model.is_none()) {
+                        continue;
+                    }
+
+                    let mut cull = [false; 6];
+                    for i in 0..NEIGHBOUR_OFFSETS.len() {
+                        let offset = NEIGHBOUR_OFFSETS[i];
+                        let (n_chunk_pos, n_local_x, n_local_y, n_local_z) = get_neighbour_pos(
+                            voxel_storage.chunk_len,
+                            world_pos,
+                            &[x as i32, y as i32, z as i32],
+                            &offset,
+                        );
+
+                        let n_block = match voxel_storage.get_voxel(
+                            &n_chunk_pos,
+                            n_local_x,
+                            n_local_y,
+                            n_local_z,
+                        ) {
+                            Some(i) => block_assets.get(blocks.folder[i as usize].id()),
+                            None => None,
+                        };
+
+                        cull[i] = n_block.is_some_and(|b| b.model == block.unwrap().model);
+                    }
+
+                    let xf = x as f32;
+                    let yf = y as f32;
+                    let zf = z as f32;
+
+                    let mut texture_map = HashMap::<String, u32>::new();
+                    let textures = &block.unwrap().textures;
+                    for k in textures.keys() {
+                        texture_map.insert(k.to_string(), block_texture_ids.0[&textures[k]]);
+                    }
+
+                    model.mesh(
+                        &cull,
+                        &[xf, yf, zf],
+                        &mut vs,
+                        &mut ns,
+                        &mut uvs,
+                        &mut ts,
+                        &mut is,
+                        &texture_map,
+                    );
+                }
+            }
+        }
+
+        if !vs.is_empty() {
+            let mesh = Mesh::new(
+                PrimitiveTopology::TriangleList,
+                RenderAssetUsages::default(),
+            )
+            .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, vs)
+            .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, ns)
+            .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, uvs)
+            .with_inserted_attribute(ATTRIBUTE_TEXTURE, ts)
+            .with_inserted_indices(Indices::U32(is));
             commands.entity(id).remove::<ChunkNeedsMeshing>().insert((
                 Mesh3d(meshes.add(mesh)),
                 MeshMaterial3d(material_handle.clone()),
@@ -451,11 +455,11 @@ fn break_place_block(
     let (world_pos, block_type) = match click.button {
         PointerButton::Primary => (
             (click.hit.position.unwrap() - click.hit.normal.unwrap() * 0.01).floor(),
-            BlockType::Air,
+            0,
         ),
         PointerButton::Secondary => (
             (click.hit.position.unwrap() + click.hit.normal.unwrap() * 0.01).floor(),
-            BlockType::Stone,
+            1,
         ),
         PointerButton::Middle => return,
     };
@@ -501,6 +505,7 @@ enum States {
     #[default]
     AssetLoading,
     Loaded,
+    Running,
 }
 
 fn main() {
@@ -535,16 +540,17 @@ fn main() {
                 .load_collection::<TextureAssets>()
                 .load_collection::<BlockAssets>(),
         )
-        .add_systems(Startup, (setup_noise, sys_chunk_spawner).chain())
+        .add_loading_state(LoadingState::new(States::Loaded).continue_to_state(States::Running))
+        .add_systems(
+            OnEnter(States::Loaded),
+            (sys_chunk_spawner, sys_create_array_texture),
+        )
+        .add_systems(Startup, (setup_noise,).chain())
         .add_systems(
             Update,
             (
                 toggle_vsync,
-                (
-                    sys_create_array_texture.run_if(in_state(States::Loaded)),
-                    sys_chunk_mesher.run_if(in_state(States::Loaded)),
-                )
-                    .chain(),
+                (sys_chunk_mesher.run_if(in_state(States::Running)),).chain(),
             ),
         )
         .run();

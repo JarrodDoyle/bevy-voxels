@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use bevy::{prelude::*, utils::HashMap};
 
 #[derive(serde::Deserialize, Asset, TypePath)]
 pub struct Model {
@@ -17,14 +17,22 @@ impl Model {
         uvs: &mut Vec<[f32; 2]>,
         ts: &mut Vec<u32>,
         is: &mut Vec<u32>,
-        texture_id: u32,
+        texture_map: &HashMap<String, u32>,
     ) {
+        let default_t = *texture_map.get("default").unwrap();
+
         let f_len = self.faces.len();
         for i in 0..f_len {
             let face = &self.faces[i];
             if face.cull.is_none_or(|c| cull[c]) {
                 continue;
             }
+
+            let t = if texture_map.contains_key(&face.texture) {
+                texture_map[&face.texture]
+            } else {
+                default_t
+            };
 
             let vcount = vs.len() as u32;
             let fv_len = face.vertices.len();
@@ -37,7 +45,7 @@ impl Model {
                 ]);
                 ns.push(face.normal);
                 uvs.push(v.uv);
-                ts.push(texture_id);
+                ts.push(t);
             }
 
             for j in 1..(fv_len as u32 - 1) {

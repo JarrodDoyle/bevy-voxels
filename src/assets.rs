@@ -23,8 +23,8 @@ pub struct TextureAssets {
 
 #[derive(AssetCollection, Resource)]
 pub struct BlockAssets {
-    #[asset(path = "blocks", collection(typed, mapped))]
-    pub folder: HashMap<AssetFileStem, Handle<Block>>,
+    #[asset(path = "blocks", collection(typed))]
+    pub folder: Vec<Handle<Block>>,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

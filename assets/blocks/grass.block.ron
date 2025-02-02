@@ -1,6 +1,6 @@
 Block(
     identifier: "grass",
-    model: "cube",
+    model: Some("cube"),
     textures: {
         "default": "grass-side",
         "up": "grass-top",

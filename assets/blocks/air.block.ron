@@ -1,6 +1,6 @@
 Block(
-    identifier: "dirt",
-    model: Some("cube"),
+    identifier: "air",
+    model: None,
     textures: {
         "default": "dirt",
     },
