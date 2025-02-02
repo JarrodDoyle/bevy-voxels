@@ -9,3 +9,12 @@ pub struct ModelAssets {
     #[asset(path = "models", collection(typed))]
     pub folder: Vec<Handle<Model>>,
 }
+
+#[derive(AssetCollection, Resource)]
+pub struct TextureAssets {
+    #[asset(path = "textures/blocks", collection(typed))]
+    pub blocks: Vec<Handle<Image>>,
+}
+
+#[derive(Resource)]
+pub struct BlockArrayTextureHandle(pub Handle<Image>);

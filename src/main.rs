@@ -1,14 +1,16 @@
 mod assets;
 mod model;
 
-use assets::ModelAssets;
+use assets::{BlockArrayTextureHandle, ModelAssets, TextureAssets};
 use bevy::{
     asset::RenderAssetUsages,
     diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin},
     prelude::*,
     render::{
         mesh::{Indices, MeshVertexAttribute, PrimitiveTopology},
-        render_resource::{AsBindGroup, ShaderRef, VertexFormat},
+        render_resource::{
+            AsBindGroup, Extent3d, ShaderRef, TextureDimension, TextureFormat, VertexFormat,
+        },
     },
     utils::hashbrown::HashMap,
     window::PresentMode,
@@ -88,12 +90,6 @@ struct Chunk {
 
 #[derive(Component)]
 struct ChunkNeedsMeshing;
-
-#[derive(Resource)]
-struct LoadingTexture {
-    is_loaded: bool,
-    handle: Handle<Image>,
-}
 
 #[derive(Asset, TypePath, AsBindGroup, Debug, Clone)]
 struct ArrayTextureMaterial {
@@ -249,40 +245,45 @@ fn setup_noise(mut commands: Commands) {
     commands.insert_resource(WorldNoise { terrain: node });
 }
 
-fn setup_assets(mut commands: Commands, asset_server: Res<AssetServer>) {
-    commands.insert_resource(LoadingTexture {
-        is_loaded: false,
-        handle: asset_server.load("textures/array_texture.png"),
-    });
-
-    // commands.insert_resource(ModelManager {
-    //     models: HashMap::<String, Handle<Model>>::new(),
-    // });
-
-    // let folder = asset_server.load_folder("models");
-    // folder
-    //     .commands
-    //     .insert_resource(ModelHandle(asset_server.load("models/cube.model.ron")));
-}
-
 fn sys_create_array_texture(
+    mut commands: Commands,
+    block_array_texture: Option<ResMut<BlockArrayTextureHandle>>,
     asset_server: Res<AssetServer>,
-    mut loading_texture: ResMut<LoadingTexture>,
-    mut images: ResMut<Assets<Image>>,
+    textures: Res<TextureAssets>,
+    images: ResMut<Assets<Image>>,
 ) {
-    if loading_texture.is_loaded
-        || !asset_server
-            .load_state(loading_texture.handle.id())
-            .is_loaded()
-    {
+    if block_array_texture.is_some() {
         return;
     }
-    loading_texture.is_loaded = true;
-    let image = images.get_mut(&loading_texture.handle).unwrap();
 
-    // Create a new array texture asset from the loaded texture.
-    let array_layers = 4;
-    image.reinterpret_stacked_2d_as_array(array_layers);
+    const SIZE: u32 = 16;
+    let mut image = Image::new_fill(
+        Extent3d {
+            width: SIZE,
+            height: SIZE * textures.blocks.len() as u32,
+            depth_or_array_layers: 1,
+        },
+        TextureDimension::D2,
+        &[255, 255, 255, 255],
+        TextureFormat::Rgba8UnormSrgb,
+        RenderAssetUsages::default(),
+    );
+
+    let tcount = textures.blocks.len() as u32;
+    for z in 0..tcount {
+        let t = images.get(textures.blocks[z as usize].id()).unwrap();
+        for y in 0..SIZE {
+            for x in 0..SIZE {
+                let c = t.get_color_at(x, y).unwrap();
+                let _ = image.set_color_at(x, y + z * SIZE, c);
+            }
+        }
+    }
+
+    image.reinterpret_stacked_2d_as_array(tcount);
+
+    let handle = asset_server.add(image);
+    commands.insert_resource(BlockArrayTextureHandle(handle));
 }
 
 fn toggle_vsync(input: Res<ButtonInput<KeyCode>>, mut windows: Query<&mut Window>) {
@@ -376,7 +377,8 @@ fn sys_chunk_spawner(mut commands: Commands, world_noise: Res<WorldNoise>) {
 
 fn sys_chunk_mesher(
     mut commands: Commands,
-    loading_texture: ResMut<LoadingTexture>,
+    asset_server: Res<AssetServer>,
+    block_array_texture: ResMut<BlockArrayTextureHandle>,
     model_handle: Res<ModelAssets>,
     model: Res<Assets<Model>>,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -384,7 +386,7 @@ fn sys_chunk_mesher(
     query_storage: Query<&VoxelStorage>,
     chunks_query: Query<(Entity, &Chunk, &ChunkNeedsMeshing)>,
 ) {
-    if !loading_texture.is_loaded {
+    if !asset_server.is_loaded(&block_array_texture.0) {
         return;
     }
 
@@ -401,7 +403,7 @@ fn sys_chunk_mesher(
     ];
 
     let material_handle = materials.add(ArrayTextureMaterial {
-        array_texture: loading_texture.handle.clone(),
+        array_texture: block_array_texture.0.clone(),
     });
 
     for (id, chunk, _) in &chunks_query {
@@ -507,18 +509,19 @@ fn main() {
         .add_loading_state(
             LoadingState::new(States::AssetLoading)
                 .continue_to_state(States::Loaded)
-                .load_collection::<ModelAssets>(),
+                .load_collection::<ModelAssets>()
+                .load_collection::<TextureAssets>(),
         )
-        .add_systems(
-            Startup,
-            (setup_assets, setup_noise, sys_chunk_spawner).chain(),
-        )
+        .add_systems(Startup, (setup_noise, sys_chunk_spawner).chain())
         .add_systems(
             Update,
             (
                 toggle_vsync,
-                sys_chunk_mesher.run_if(in_state(States::Loaded)),
-                sys_create_array_texture,
+                (
+                    sys_create_array_texture.run_if(in_state(States::Loaded)),
+                    sys_chunk_mesher.run_if(in_state(States::Loaded)),
+                )
+                    .chain(),
             ),
         )
         .run();
