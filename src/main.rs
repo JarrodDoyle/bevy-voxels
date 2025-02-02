@@ -2,7 +2,10 @@ use bevy::{
     asset::RenderAssetUsages,
     diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin},
     prelude::*,
-    render::mesh::{Indices, PrimitiveTopology},
+    render::{
+        mesh::{Indices, PrimitiveTopology},
+        render_resource::{AsBindGroup, ShaderRef},
+    },
     window::PresentMode,
 };
 use bevy_flycam::PlayerPlugin;
@@ -27,6 +30,26 @@ struct Chunk {
 
 #[derive(Component)]
 struct ChunkNeedsMeshing;
+
+#[derive(Resource)]
+struct LoadingTexture {
+    is_loaded: bool,
+    handle: Handle<Image>,
+}
+
+#[derive(Asset, TypePath, AsBindGroup, Debug, Clone)]
+struct ArrayTextureMaterial {
+    #[texture(0, dimension = "2d_array")]
+    #[sampler(1)]
+    array_texture: Handle<Image>,
+}
+
+const SHADER_ASSET_PATH: &str = "shaders/array_texture.wgsl";
+impl Material for ArrayTextureMaterial {
+    fn fragment_shader() -> ShaderRef {
+        SHADER_ASSET_PATH.into()
+    }
+}
 
 fn gen_chunk_mesh(voxels: &[BlockType]) -> Option<Mesh> {
     const NEIGHBOUR_OFFSETS: [(i32, i32, i32); 6] = [
@@ -54,6 +77,7 @@ fn gen_chunk_mesh(voxels: &[BlockType]) -> Option<Mesh> {
     let mut vs: Vec<[f32; 3]> = vec![];
     let mut is = vec![];
     let mut ns = vec![];
+    let mut uvs = vec![];
     for z in 0..CHUNK_LEN {
         for y in 0..CHUNK_LEN {
             for x in 0..CHUNK_LEN {
@@ -88,6 +112,12 @@ fn gen_chunk_mesh(voxels: &[BlockType]) -> Option<Mesh> {
                             vs.push([xf + raw_v.0, yf + raw_v.1, zf + raw_v.2]);
                             ns.push([offset.0 as f32, offset.1 as f32, offset.2 as f32]);
                         }
+
+                        uvs.push([1., 0.]);
+                        uvs.push([1., 1.]);
+                        uvs.push([0., 1.]);
+                        uvs.push([0., 0.]);
+
                         is.push(vcount);
                         is.push(vcount + 2);
                         is.push(vcount + 3);
@@ -111,6 +141,7 @@ fn gen_chunk_mesh(voxels: &[BlockType]) -> Option<Mesh> {
         )
         .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, vs)
         .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, ns)
+        .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, uvs)
         .with_inserted_indices(Indices::U32(is)),
     )
 }
@@ -144,6 +175,33 @@ fn setup_noise(mut commands: Commands) {
     let node = SafeNode::from_encoded_node_tree(encoded_node_tree).unwrap();
 
     commands.insert_resource(WorldNoise { terrain: node });
+}
+
+fn setup_assets(mut commands: Commands, asset_server: Res<AssetServer>) {
+    commands.insert_resource(LoadingTexture {
+        is_loaded: false,
+        handle: asset_server.load("textures/array_texture.png"),
+    });
+}
+
+fn sys_create_array_texture(
+    asset_server: Res<AssetServer>,
+    mut loading_texture: ResMut<LoadingTexture>,
+    mut images: ResMut<Assets<Image>>,
+) {
+    if loading_texture.is_loaded
+        || !asset_server
+            .load_state(loading_texture.handle.id())
+            .is_loaded()
+    {
+        return;
+    }
+    loading_texture.is_loaded = true;
+    let image = images.get_mut(&loading_texture.handle).unwrap();
+
+    // Create a new array texture asset from the loaded texture.
+    let array_layers = 4;
+    image.reinterpret_stacked_2d_as_array(array_layers);
 }
 
 fn toggle_vsync(input: Res<ButtonInput<KeyCode>>, mut windows: Query<&mut Window>) {
@@ -205,11 +263,16 @@ fn sys_chunk_spawner(mut commands: Commands, world_noise: Res<WorldNoise>) {
 
 fn sys_chunk_mesher(
     mut commands: Commands,
+    loading_texture: ResMut<LoadingTexture>,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut materials: ResMut<Assets<ArrayTextureMaterial>>,
     chunks_query: Query<(Entity, &Chunk, &ChunkNeedsMeshing)>,
 ) {
-    let colors = [
+    if !loading_texture.is_loaded {
+        return;
+    }
+
+    let _colors = [
         Color::srgb_u8(228, 59, 68),
         Color::srgb_u8(62, 137, 72),
         Color::srgb_u8(0, 153, 219),
@@ -218,11 +281,15 @@ fn sys_chunk_mesher(
         Color::srgb_u8(104, 56, 108),
     ];
 
+    let material_handle = materials.add(ArrayTextureMaterial {
+        array_texture: loading_texture.handle.clone(),
+    });
+
     for (id, chunk, _) in &chunks_query {
         if let Some(mesh) = gen_chunk_mesh(&chunk.voxels) {
             commands.entity(id).remove::<ChunkNeedsMeshing>().insert((
                 Mesh3d(meshes.add(mesh)),
-                MeshMaterial3d(materials.add(colors[id.index() as usize % colors.len()])),
+                MeshMaterial3d(material_handle.clone()),
             ));
         } else {
             // TODO: Remove meshmaterial?
@@ -283,12 +350,22 @@ fn main() {
             LogDiagnosticsPlugin::default(),
             FrameTimeDiagnosticsPlugin,
             MeshPickingPlugin,
+            MaterialPlugin::<ArrayTextureMaterial>::default(),
         ))
         .add_plugins(PlayerPlugin)
         .add_systems(
             Startup,
-            (setup_noise, setup_temp_geometry, sys_chunk_spawner).chain(),
+            (
+                setup_assets,
+                setup_noise,
+                setup_temp_geometry,
+                sys_chunk_spawner,
+            )
+                .chain(),
         )
-        .add_systems(Update, (toggle_vsync, sys_chunk_mesher))
+        .add_systems(
+            Update,
+            (toggle_vsync, sys_chunk_mesher, sys_create_array_texture),
+        )
         .run();
 }
