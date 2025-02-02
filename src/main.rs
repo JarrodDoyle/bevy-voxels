@@ -235,6 +235,15 @@ fn sys_chunk_spawner(
                         for x in 0..storage.chunk_len {
                             let i = storage.local_pos_to_idx(x, y, z);
                             if chunk_voxels[i] == block_map["air"] {
+                                if y > 0
+                                    && chunk_voxels[storage.local_pos_to_idx(x, y - 1, z)]
+                                        != block_map["air"]
+                                    && chunk_voxels[storage.local_pos_to_idx(x, y - 1, z)]
+                                        != block_map["stone_fence"]
+                                {
+                                    chunk_voxels[i] = block_map["stone_fence"];
+                                }
+
                                 continue;
                             }
 
