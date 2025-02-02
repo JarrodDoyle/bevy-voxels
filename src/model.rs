@@ -1,17 +1,10 @@
 use bevy::{
     asset::{Asset, Handle},
     ecs::system::Resource,
+    prelude::*,
     reflect::TypePath,
-    utils::hashbrown::HashMap,
 };
-
-#[derive(Resource)]
-pub struct ModelHandle(pub Handle<Model>);
-
-#[derive(Resource)]
-pub struct ModelManager {
-    pub models: HashMap<String, Handle<Model>>,
-}
+use bevy_asset_loader::asset_collection::AssetCollection;
 
 #[derive(serde::Deserialize, Asset, TypePath)]
 pub struct Model {

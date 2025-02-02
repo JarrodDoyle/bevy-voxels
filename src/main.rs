@@ -1,5 +1,7 @@
+mod assets;
 mod model;
 
+use assets::ModelAssets;
 use bevy::{
     asset::RenderAssetUsages,
     diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin},
@@ -11,10 +13,13 @@ use bevy::{
     utils::hashbrown::HashMap,
     window::PresentMode,
 };
+use bevy_asset_loader::loading_state::{
+    config::ConfigureLoadingState, LoadingState, LoadingStateAppExt,
+};
 use bevy_common_assets::ron::RonAssetPlugin;
 use bevy_flycam::PlayerPlugin;
 use fastnoise2::SafeNode;
-use model::{Model, ModelHandle, ModelManager};
+use model::Model;
 
 #[derive(Clone, Copy, PartialEq)]
 enum BlockType {
@@ -250,10 +255,14 @@ fn setup_assets(mut commands: Commands, asset_server: Res<AssetServer>) {
         handle: asset_server.load("textures/array_texture.png"),
     });
 
-    commands.insert_resource(ModelManager {
-        models: HashMap::<String, Handle<Model>>::new(),
-    });
-    commands.insert_resource(ModelHandle(asset_server.load("models/cube.model.ron")));
+    // commands.insert_resource(ModelManager {
+    //     models: HashMap::<String, Handle<Model>>::new(),
+    // });
+
+    // let folder = asset_server.load_folder("models");
+    // folder
+    //     .commands
+    //     .insert_resource(ModelHandle(asset_server.load("models/cube.model.ron")));
 }
 
 fn sys_create_array_texture(
@@ -368,7 +377,7 @@ fn sys_chunk_spawner(mut commands: Commands, world_noise: Res<WorldNoise>) {
 fn sys_chunk_mesher(
     mut commands: Commands,
     loading_texture: ResMut<LoadingTexture>,
-    model_handle: Res<ModelHandle>,
+    model_handle: Res<ModelAssets>,
     model: Res<Assets<Model>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ArrayTextureMaterial>>,
@@ -379,7 +388,7 @@ fn sys_chunk_mesher(
         return;
     }
 
-    let raw_model = model.get(model_handle.0.id()).unwrap();
+    let raw_model = model.get(model_handle.folder[0].id()).unwrap();
     let voxel_storage = query_storage.single();
 
     let _colors = [
@@ -464,6 +473,13 @@ fn break_place_block(
     }
 }
 
+#[derive(Clone, Eq, PartialEq, Debug, Hash, Default, States)]
+enum States {
+    #[default]
+    AssetLoading,
+    Loaded,
+}
+
 fn main() {
     App::new()
         .insert_resource(ClearColor(Color::BLACK))
@@ -487,13 +503,23 @@ fn main() {
             RonAssetPlugin::<Model>::new(&["model.ron"]),
         ))
         .add_plugins(PlayerPlugin)
+        .init_state::<States>()
+        .add_loading_state(
+            LoadingState::new(States::AssetLoading)
+                .continue_to_state(States::Loaded)
+                .load_collection::<ModelAssets>(),
+        )
         .add_systems(
             Startup,
             (setup_assets, setup_noise, sys_chunk_spawner).chain(),
         )
         .add_systems(
             Update,
-            (toggle_vsync, sys_chunk_mesher, sys_create_array_texture),
+            (
+                toggle_vsync,
+                sys_chunk_mesher.run_if(in_state(States::Loaded)),
+                sys_create_array_texture,
+            ),
         )
         .run();
 }
