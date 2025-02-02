@@ -1,10 +1,4 @@
-use bevy::{
-    asset::{Asset, Handle},
-    ecs::system::Resource,
-    prelude::*,
-    reflect::TypePath,
-};
-use bevy_asset_loader::asset_collection::AssetCollection;
+use bevy::prelude::*;
 
 #[derive(serde::Deserialize, Asset, TypePath)]
 pub struct Model {
