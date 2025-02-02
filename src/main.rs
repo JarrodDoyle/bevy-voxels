@@ -270,8 +270,8 @@ fn sys_chunk_spawner(mut commands: Commands, world_noise: Res<WorldNoise>) {
                                         BlockType::Dirt
                                     };
                                     break;
-                        }
-                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -367,16 +367,18 @@ fn main() {
     App::new()
         .insert_resource(ClearColor(Color::BLACK))
         .add_plugins((
-            DefaultPlugins.set(WindowPlugin {
-                primary_window: Some(Window {
-                    title: "Bevy Voxel Meshing".into(),
-                    name: Some("bevy.app".into()),
-                    resolution: (1280., 720.).into(),
-                    present_mode: PresentMode::AutoVsync,
+            DefaultPlugins
+                .set(WindowPlugin {
+                    primary_window: Some(Window {
+                        title: "Bevy Voxel Meshing".into(),
+                        name: Some("bevy.app".into()),
+                        resolution: (1280., 720.).into(),
+                        present_mode: PresentMode::AutoVsync,
+                        ..default()
+                    }),
                     ..default()
-                }),
-                ..default()
-            }),
+                })
+                .set(ImagePlugin::default_nearest()),
             LogDiagnosticsPlugin::default(),
             FrameTimeDiagnosticsPlugin,
             MeshPickingPlugin,
