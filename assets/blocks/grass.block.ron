@@ -1,0 +1,9 @@
+BlockType(
+    identifier: "grass",
+    model: "cube",
+    textures: {
+        "default": "grass-side",
+        "up": "grass-top",
+        "down": "dirt",
+    },
+)

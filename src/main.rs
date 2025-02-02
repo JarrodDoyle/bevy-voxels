@@ -1,3 +1,5 @@
+mod model;
+
 use bevy::{
     asset::RenderAssetUsages,
     diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin},
@@ -9,8 +11,10 @@ use bevy::{
     utils::hashbrown::HashMap,
     window::PresentMode,
 };
+use bevy_common_assets::ron::RonAssetPlugin;
 use bevy_flycam::PlayerPlugin;
 use fastnoise2::SafeNode;
+use model::{Model, ModelHandle, ModelManager};
 
 #[derive(Clone, Copy, PartialEq)]
 enum BlockType {
@@ -121,27 +125,14 @@ impl Material for ArrayTextureMaterial {
 
 const ATTRIBUTE_TEXTURE: MeshVertexAttribute =
     MeshVertexAttribute::new("texure_id", 988540917, VertexFormat::Uint32);
-fn gen_chunk_mesh(world_pos: &[i32; 3], storage: &VoxelStorage) -> Option<Mesh> {
+fn gen_chunk_mesh(world_pos: &[i32; 3], storage: &VoxelStorage, model: &Model) -> Option<Mesh> {
     const NEIGHBOUR_OFFSETS: [[i32; 3]; 6] = [
-        [1, 0, 0],  // right
         [-1, 0, 0], // left
-        [0, -1, 0], // down
+        [1, 0, 0],  // right
         [0, 1, 0],  // up
-        [0, 0, 1],  // forward
+        [0, -1, 0], // down
+        [0, 0, 1],  // front
         [0, 0, -1], // back
-    ];
-    const RAW_VERTICES: [(f32, f32, f32); 8] = [
-        (1., 1., 1.),
-        (1., 0., 1.),
-        (1., 0., 0.),
-        (1., 1., 0.),
-        (0., 0., 1.),
-        (0., 1., 1.),
-        (0., 1., 0.),
-        (0., 0., 0.),
-    ];
-    const RAW_INDICES: [usize; 24] = [
-        0, 1, 2, 3, 6, 7, 4, 5, 7, 2, 1, 4, 3, 6, 5, 0, 5, 4, 1, 0, 3, 2, 7, 6,
     ];
 
     let get_neighbour_pos =
@@ -197,10 +188,7 @@ fn gen_chunk_mesh(world_pos: &[i32; 3], storage: &VoxelStorage) -> Option<Mesh> 
                     continue;
                 }
 
-                let xf = x as f32;
-                let yf = y as f32;
-                let zf = z as f32;
-
+                let mut cull = [false; 6];
                 for i in 0..NEIGHBOUR_OFFSETS.len() {
                     let offset = NEIGHBOUR_OFFSETS[i];
                     let (n_chunk_pos, n_local_x, n_local_y, n_local_z) = get_neighbour_pos(
@@ -212,28 +200,22 @@ fn gen_chunk_mesh(world_pos: &[i32; 3], storage: &VoxelStorage) -> Option<Mesh> 
 
                     let n_block_type =
                         storage.get_voxel(&n_chunk_pos, n_local_x, n_local_y, n_local_z);
-                    if n_block_type.is_none() || n_block_type.unwrap() == BlockType::Air {
-                        let vcount = vs.len() as u32;
-                        for j in 0..4 {
-                            let raw_v = RAW_VERTICES[RAW_INDICES[i * 4 + j]];
-                            vs.push([xf + raw_v.0, yf + raw_v.1, zf + raw_v.2]);
-                            ns.push([offset[0] as f32, offset[1] as f32, offset[2] as f32]);
-                            ts.push(block_type.unwrap() as u32);
-                        }
-
-                        uvs.push([0., 0.]);
-                        uvs.push([0., 1.]);
-                        uvs.push([1., 1.]);
-                        uvs.push([1., 0.]);
-
-                        is.push(vcount);
-                        is.push(vcount + 2);
-                        is.push(vcount + 3);
-                        is.push(vcount);
-                        is.push(vcount + 1);
-                        is.push(vcount + 2);
-                    }
+                    cull[i] = n_block_type.is_some_and(|b| b != BlockType::Air);
                 }
+
+                let xf = x as f32;
+                let yf = y as f32;
+                let zf = z as f32;
+
+                model.mesh(
+                    &cull,
+                    &[xf, yf, zf],
+                    &mut vs,
+                    &mut ns,
+                    &mut uvs,
+                    &mut ts,
+                    &mut is,
+                );
             }
         }
     }
@@ -267,6 +249,11 @@ fn setup_assets(mut commands: Commands, asset_server: Res<AssetServer>) {
         is_loaded: false,
         handle: asset_server.load("textures/array_texture.png"),
     });
+
+    commands.insert_resource(ModelManager {
+        models: HashMap::<String, Handle<Model>>::new(),
+    });
+    commands.insert_resource(ModelHandle(asset_server.load("models/cube.model.ron")));
 }
 
 fn sys_create_array_texture(
@@ -381,6 +368,8 @@ fn sys_chunk_spawner(mut commands: Commands, world_noise: Res<WorldNoise>) {
 fn sys_chunk_mesher(
     mut commands: Commands,
     loading_texture: ResMut<LoadingTexture>,
+    model_handle: Res<ModelHandle>,
+    model: Res<Assets<Model>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ArrayTextureMaterial>>,
     query_storage: Query<&VoxelStorage>,
@@ -390,6 +379,7 @@ fn sys_chunk_mesher(
         return;
     }
 
+    let raw_model = model.get(model_handle.0.id()).unwrap();
     let voxel_storage = query_storage.single();
 
     let _colors = [
@@ -406,7 +396,7 @@ fn sys_chunk_mesher(
     });
 
     for (id, chunk, _) in &chunks_query {
-        if let Some(mesh) = gen_chunk_mesh(&chunk.world_pos, voxel_storage) {
+        if let Some(mesh) = gen_chunk_mesh(&chunk.world_pos, voxel_storage, raw_model) {
             commands.entity(id).remove::<ChunkNeedsMeshing>().insert((
                 Mesh3d(meshes.add(mesh)),
                 MeshMaterial3d(material_handle.clone()),
@@ -494,6 +484,7 @@ fn main() {
             FrameTimeDiagnosticsPlugin,
             MeshPickingPlugin,
             MaterialPlugin::<ArrayTextureMaterial>::default(),
+            RonAssetPlugin::<Model>::new(&["model.ron"]),
         ))
         .add_plugins(PlayerPlugin)
         .add_systems(

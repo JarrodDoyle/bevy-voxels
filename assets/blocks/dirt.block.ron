@@ -1,0 +1,7 @@
+BlockType(
+    identifier: "dirt",
+    model: "cube",
+    textures: {
+        "default": "dirt",
+    },
+)
