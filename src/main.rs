@@ -58,6 +58,15 @@ impl VoxelStorage {
         }
     }
 
+    fn load_chunk(&mut self, chunk_pos: &[i32; 3], chunk_voxels: Vec<BlockType>) {
+        assert_eq!(
+            chunk_voxels.len(),
+            self.chunk_len * self.chunk_len * self.chunk_len
+        );
+
+        self.voxels.insert(*chunk_pos, chunk_voxels);
+    }
+
     fn local_pos_to_idx(&self, x: usize, y: usize, z: usize) -> usize {
         x + y * self.chunk_len + z * self.chunk_len * self.chunk_len
     }
@@ -293,54 +302,54 @@ fn toggle_vsync(input: Res<ButtonInput<KeyCode>>, mut windows: Query<&mut Window
     }
 }
 
-const CHUNK_LEN: usize = 32;
-const FREQUENCY: f32 = 0.005;
-const SEED: i32 = 1338;
-
-fn chunk_pos_to_idx(x: usize, y: usize, z: usize) -> usize {
-    x + y * CHUNK_LEN + z * CHUNK_LEN * CHUNK_LEN
-}
-
 fn sys_chunk_spawner(mut commands: Commands, world_noise: Res<WorldNoise>) {
-    let mut chunk_voxel_hashmap = HashMap::<[i32; 3], Vec<BlockType>>::new();
+    let mut storage = VoxelStorage {
+        chunk_len: 32,
+        voxels: HashMap::<[i32; 3], Vec<BlockType>>::new(),
+    };
 
-    let mut noise_vals = vec![0.0; CHUNK_LEN * CHUNK_LEN * CHUNK_LEN];
+    const FREQUENCY: f32 = 0.005;
+    const SEED: i32 = 1338;
+
+    let voxels_per_chunk = storage.chunk_len * storage.chunk_len * storage.chunk_len;
+    let mut noise_vals = vec![0.0; voxels_per_chunk];
 
     for z in 0..3 {
         for y in 0..3 {
             for x in 0..3 {
                 world_noise.terrain.gen_uniform_grid_3d(
                     &mut noise_vals,
-                    (CHUNK_LEN * x) as i32,
-                    (CHUNK_LEN * y) as i32,
-                    (CHUNK_LEN * z) as i32,
-                    CHUNK_LEN as i32,
-                    CHUNK_LEN as i32,
-                    CHUNK_LEN as i32,
+                    (storage.chunk_len * x) as i32,
+                    (storage.chunk_len * y) as i32,
+                    (storage.chunk_len * z) as i32,
+                    storage.chunk_len as i32,
+                    storage.chunk_len as i32,
+                    storage.chunk_len as i32,
                     FREQUENCY,
                     SEED,
                 );
 
-                let mut voxels = vec![BlockType::Air; CHUNK_LEN * CHUNK_LEN * CHUNK_LEN];
-                (0..CHUNK_LEN * CHUNK_LEN * CHUNK_LEN).for_each(|i| {
+                let mut chunk_voxels = vec![BlockType::Air; voxels_per_chunk];
+                (0..voxels_per_chunk).for_each(|i| {
                     if noise_vals[i] > 0. {
-                        voxels[i] = BlockType::Stone;
+                        chunk_voxels[i] = BlockType::Stone;
                     }
                 });
 
-                for z in 0..CHUNK_LEN {
-                    for y in 0..CHUNK_LEN {
-                        for x in 0..CHUNK_LEN {
-                            let i = chunk_pos_to_idx(x, y, z);
-                            if voxels[i] == BlockType::Air {
+                for z in 0..storage.chunk_len {
+                    for y in 0..storage.chunk_len {
+                        for x in 0..storage.chunk_len {
+                            let i = storage.local_pos_to_idx(x, y, z);
+                            if chunk_voxels[i] == BlockType::Air {
                                 continue;
                             }
 
                             for dy in 1..4 {
-                                if y + dy < CHUNK_LEN
-                                    && voxels[chunk_pos_to_idx(x, y + dy, z)] == BlockType::Air
+                                if y + dy < storage.chunk_len
+                                    && chunk_voxels[storage.local_pos_to_idx(x, y + dy, z)]
+                                        == BlockType::Air
                                 {
-                                    voxels[i] = if dy == 1 {
+                                    chunk_voxels[i] = if dy == 1 {
                                         BlockType::Grass
                                     } else {
                                         BlockType::Dirt
@@ -353,7 +362,7 @@ fn sys_chunk_spawner(mut commands: Commands, world_noise: Res<WorldNoise>) {
                 }
 
                 let world_pos = [x as i32, y as i32, z as i32];
-                chunk_voxel_hashmap.insert(world_pos, voxels);
+                storage.load_chunk(&world_pos, chunk_voxels);
 
                 commands
                     .spawn((
@@ -366,10 +375,7 @@ fn sys_chunk_spawner(mut commands: Commands, world_noise: Res<WorldNoise>) {
         }
     }
 
-    commands.spawn(VoxelStorage {
-        chunk_len: 32,
-        voxels: chunk_voxel_hashmap,
-    });
+    commands.spawn(storage);
 }
 
 fn sys_chunk_mesher(
