@@ -3,8 +3,8 @@ use bevy::{
     diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin},
     prelude::*,
     render::{
-        mesh::{Indices, PrimitiveTopology},
-        render_resource::{AsBindGroup, ShaderRef},
+        mesh::{Indices, MeshVertexAttribute, PrimitiveTopology},
+        render_resource::{AsBindGroup, ShaderRef, VertexFormat},
     },
     window::PresentMode,
 };
@@ -13,6 +13,8 @@ use fastnoise2::SafeNode;
 
 #[derive(Clone, Copy, PartialEq)]
 enum BlockType {
+    Grass,
+    Dirt,
     Stone,
     Air,
 }
@@ -46,11 +48,32 @@ struct ArrayTextureMaterial {
 
 const SHADER_ASSET_PATH: &str = "shaders/array_texture.wgsl";
 impl Material for ArrayTextureMaterial {
+    fn vertex_shader() -> ShaderRef {
+        SHADER_ASSET_PATH.into()
+    }
+
     fn fragment_shader() -> ShaderRef {
         SHADER_ASSET_PATH.into()
     }
+    fn specialize(
+        _pipeline: &bevy::pbr::MaterialPipeline<Self>,
+        descriptor: &mut bevy::render::render_resource::RenderPipelineDescriptor,
+        layout: &bevy::render::mesh::MeshVertexBufferLayoutRef,
+        _key: bevy::pbr::MaterialPipelineKey<Self>,
+    ) -> Result<(), bevy::render::render_resource::SpecializedMeshPipelineError> {
+        let vertex_layout = layout.0.get_layout(&[
+            Mesh::ATTRIBUTE_POSITION.at_shader_location(0),
+            Mesh::ATTRIBUTE_NORMAL.at_shader_location(1),
+            Mesh::ATTRIBUTE_UV_0.at_shader_location(2),
+            ATTRIBUTE_TEXTURE.at_shader_location(3),
+        ])?;
+        descriptor.vertex.buffers = vec![vertex_layout];
+        Ok(())
+    }
 }
 
+const ATTRIBUTE_TEXTURE: MeshVertexAttribute =
+    MeshVertexAttribute::new("texure_id", 988540917, VertexFormat::Uint32);
 fn gen_chunk_mesh(voxels: &[BlockType]) -> Option<Mesh> {
     const NEIGHBOUR_OFFSETS: [(i32, i32, i32); 6] = [
         (1, 0, 0),  // right
@@ -78,6 +101,7 @@ fn gen_chunk_mesh(voxels: &[BlockType]) -> Option<Mesh> {
     let mut is = vec![];
     let mut ns = vec![];
     let mut uvs = vec![];
+    let mut ts = vec![];
     for z in 0..CHUNK_LEN {
         for y in 0..CHUNK_LEN {
             for x in 0..CHUNK_LEN {
@@ -111,6 +135,7 @@ fn gen_chunk_mesh(voxels: &[BlockType]) -> Option<Mesh> {
                             let raw_v = RAW_VERTICES[RAW_INDICES[i * 4 + j]];
                             vs.push([xf + raw_v.0, yf + raw_v.1, zf + raw_v.2]);
                             ns.push([offset.0 as f32, offset.1 as f32, offset.2 as f32]);
+                            ts.push(voxels[idx] as u32);
                         }
 
                         uvs.push([1., 0.]);
@@ -142,6 +167,7 @@ fn gen_chunk_mesh(voxels: &[BlockType]) -> Option<Mesh> {
         .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, vs)
         .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, ns)
         .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, uvs)
+        .with_inserted_attribute(ATTRIBUTE_TEXTURE, ts)
         .with_inserted_indices(Indices::U32(is)),
     )
 }
@@ -200,9 +226,9 @@ const SEED: i32 = 1338;
 fn sys_chunk_spawner(mut commands: Commands, world_noise: Res<WorldNoise>) {
     let mut noise_vals = vec![0.0; CHUNK_LEN * CHUNK_LEN * CHUNK_LEN];
 
-    for z in 0..9 {
-        for y in 0..9 {
-            for x in 0..9 {
+    for z in 0..3 {
+        for y in 0..3 {
+            for x in 0..3 {
                 world_noise.terrain.gen_uniform_grid_3d(
                     &mut noise_vals,
                     (CHUNK_LEN * x) as i32,
@@ -219,6 +245,10 @@ fn sys_chunk_spawner(mut commands: Commands, world_noise: Res<WorldNoise>) {
                 (0..CHUNK_LEN * CHUNK_LEN * CHUNK_LEN).for_each(|i| {
                     if noise_vals[i] > 0. {
                         voxels[i] = BlockType::Stone;
+                        let above = i + CHUNK_LEN;
+                        if above < noise_vals.len() && noise_vals[above] <= 0. {
+                            voxels[i] = BlockType::Dirt;
+                        }
                     }
                 });
 
