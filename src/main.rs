@@ -44,6 +44,20 @@ impl VoxelStorage {
             .map(|chunk| chunk[self.local_pos_to_idx(local_x, local_y, local_z)])
     }
 
+    fn set_voxel(
+        &mut self,
+        chunk_pos: &[i32; 3],
+        local_x: usize,
+        local_y: usize,
+        local_z: usize,
+        block_type: BlockType,
+    ) {
+        let idx = self.local_pos_to_idx(local_x, local_y, local_z);
+        if let Some(chunk) = self.voxels.get_mut(chunk_pos) {
+            chunk[idx] = block_type;
+        }
+    }
+
     fn local_pos_to_idx(&self, x: usize, y: usize, z: usize) -> usize {
         x + y * self.chunk_len + z * self.chunk_len * self.chunk_len
     }
@@ -404,7 +418,7 @@ fn break_place_block(
     mut query_storage: Query<&mut VoxelStorage>,
     query_chunk: Query<(Entity, &Chunk)>,
 ) {
-    let mut voxel_storage = query_storage.single_mut();
+    let mut storage = query_storage.single_mut();
 
     let (world_pos, block_type) = match click.button {
         PointerButton::Primary => (
@@ -418,40 +432,33 @@ fn break_place_block(
         PointerButton::Middle => return,
     };
 
-    let cx = (world_pos[0] / CHUNK_LEN as f32).floor() as i32;
-    let cy = (world_pos[1] / CHUNK_LEN as f32).floor() as i32;
-    let cz = (world_pos[2] / CHUNK_LEN as f32).floor() as i32;
+    let cx = (world_pos[0] / storage.chunk_len as f32).floor() as i32;
+    let cy = (world_pos[1] / storage.chunk_len as f32).floor() as i32;
+    let cz = (world_pos[2] / storage.chunk_len as f32).floor() as i32;
+    let local_x = (world_pos[0] as i32 - cx * storage.chunk_len as i32) as usize;
+    let local_y = (world_pos[1] as i32 - cy * storage.chunk_len as i32) as usize;
+    let local_z = (world_pos[2] as i32 - cz * storage.chunk_len as i32) as usize;
 
-    let local_x = (world_pos[0] as i32 - cx * CHUNK_LEN as i32) as usize;
-    let local_y = (world_pos[1] as i32 - cy * CHUNK_LEN as i32) as usize;
-    let local_z = (world_pos[2] as i32 - cz * CHUNK_LEN as i32) as usize;
+    storage.set_voxel(&[cx, cy, cz], local_x, local_y, local_z, block_type);
 
     let mut needs_meshing = vec![[cx, cy, cz]];
-    for (_, chunk) in &query_chunk {
-        if cx == chunk.world_pos[0] && cy == chunk.world_pos[1] && cz == chunk.world_pos[2] {
-            let idx = local_x + local_y * CHUNK_LEN + local_z * CHUNK_LEN * CHUNK_LEN;
-            let chunk_voxels = voxel_storage.voxels.get_mut(&chunk.world_pos).unwrap();
-            chunk_voxels[idx] = block_type;
-
-            if local_x == 0 {
-                needs_meshing.push([cx - 1, cy, cz]);
-            }
-            if local_x == CHUNK_LEN - 1 {
-                needs_meshing.push([cx + 1, cy, cz]);
-            }
-            if local_y == 0 {
-                needs_meshing.push([cx, cy - 1, cz]);
-            }
-            if local_y == CHUNK_LEN - 1 {
-                needs_meshing.push([cx, cy + 1, cz]);
-            }
-            if local_z == 0 {
-                needs_meshing.push([cx, cy, cz - 1]);
-            }
-            if local_z == CHUNK_LEN - 1 {
-                needs_meshing.push([cx, cy, cz + 1]);
-            }
-        }
+    if local_x == 0 {
+        needs_meshing.push([cx - 1, cy, cz]);
+    }
+    if local_x == storage.chunk_len - 1 {
+        needs_meshing.push([cx + 1, cy, cz]);
+    }
+    if local_y == 0 {
+        needs_meshing.push([cx, cy - 1, cz]);
+    }
+    if local_y == storage.chunk_len - 1 {
+        needs_meshing.push([cx, cy + 1, cz]);
+    }
+    if local_z == 0 {
+        needs_meshing.push([cx, cy, cz - 1]);
+    }
+    if local_z == storage.chunk_len - 1 {
+        needs_meshing.push([cx, cy, cz + 1]);
     }
 
     for (id, chunk) in &query_chunk {
