@@ -6,13 +6,31 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-bevy = { version = "0.15.1", features = ["dynamic_linking"] }
+bevy = { version = "0.15.1", features = ["wayland"] }
 bevy_asset_loader = "0.22.0"
 bevy_common_assets = { version = "0.12.0", features = ["ron"] }
 bevy_flycam = "0.15.0"
 fastnoise2 = "0.3.1"
 log = "0.4.25"
 serde = "1.0.217"
+
+[features]
+default = [
+    # Default to a native dev build.
+    "dev_native",
+]
+dev = [
+    # Improve compile times for dev builds by linking Bevy as a dynamic library.
+    "bevy/dynamic_linking",
+    "bevy/bevy_dev_tools",
+]
+dev_native = [
+    "dev",
+    # Enable asset hot reloading for native dev builds.
+    "bevy/file_watcher",
+    # Enable embedded asset hot reloading for native dev builds.
+    "bevy/embedded_watcher",
+]
 
 [profile.dev]
 opt-level = 1
@@ -22,3 +40,7 @@ codegen-backend = "cranelift"
 opt-level = 3
 codegen-backend = "llvm"
 
+[lints.clippy]
+# Bevy supplies arguments to systems via dependency injection, so it's natural for systems to
+# request more than 7 arguments -- which triggers this lint.
+too_many_arguments = "allow"
