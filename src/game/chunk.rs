@@ -354,13 +354,11 @@ fn break_place_block(
 ) {
     let mut storage = query_storage.single_mut();
 
+    let hit_pos = (click.hit.position.unwrap() - click.hit.normal.unwrap() * 0.01).floor();
     let (world_pos, block_type) = match click.button {
-        PointerButton::Primary => (
-            (click.hit.position.unwrap() - click.hit.normal.unwrap() * 0.01).floor(),
-            registry.get_block_id("air"),
-        ),
+        PointerButton::Primary => (hit_pos, registry.get_block_id("air")),
         PointerButton::Secondary => (
-            (click.hit.position.unwrap() + click.hit.normal.unwrap() * 0.01).floor(),
+            (hit_pos + click.hit.normal.unwrap()).floor(),
             registry.get_block_id("stone"),
         ),
         PointerButton::Middle => return,
