@@ -7,6 +7,7 @@ use bevy::{
     },
     diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin},
     input::common_conditions::input_just_pressed,
+    pbr::wireframe::WireframeConfig,
     prelude::*,
     window::PresentMode,
 };
@@ -25,6 +26,7 @@ pub(super) fn plugin(app: &mut App) {
         (
             toggle_debug_ui.run_if(input_just_pressed(TOGGLE_KEY)),
             toggle_vsync.run_if(input_just_pressed(KeyCode::KeyV)),
+            toggle_wireframe.run_if(input_just_pressed(KeyCode::KeyM)),
         ),
     );
 }
@@ -42,4 +44,8 @@ fn toggle_vsync(mut windows: Query<&mut Window>) {
         _ => PresentMode::AutoVsync,
     };
     info!("PRESENT_MODE: {:?}", window.present_mode);
+}
+
+fn toggle_wireframe(mut wireframe_config: ResMut<WireframeConfig>) {
+    wireframe_config.global = !wireframe_config.global;
 }
