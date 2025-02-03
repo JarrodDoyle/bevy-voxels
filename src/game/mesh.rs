@@ -1,4 +1,5 @@
 use bevy::{
+    pbr::wireframe::{WireframeConfig, WireframePlugin},
     prelude::*,
     render::{
         mesh::MeshVertexAttribute,
@@ -8,9 +9,15 @@ use bevy::{
 
 pub(super) fn plugin(app: &mut App) {
     app.add_plugins((
+        WireframePlugin,
         MaterialPlugin::<ArrayTextureMaterial>::default(),
         MeshPickingPlugin,
     ));
+
+    app.insert_resource(WireframeConfig {
+        global: false,
+        default_color: Color::WHITE,
+    });
 }
 
 pub const ATTRIBUTE_TEXTURE: MeshVertexAttribute =

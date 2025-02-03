@@ -10,6 +10,10 @@ mod theme;
 use bevy::{
     audio::{AudioPlugin, Volume},
     prelude::*,
+    render::{
+        settings::{RenderCreation, WgpuFeatures, WgpuSettings},
+        RenderPlugin,
+    },
     window::PresentMode,
 };
 
@@ -52,7 +56,15 @@ impl Plugin for AppPlugin {
                     },
                     ..default()
                 })
-                .set(ImagePlugin::default_nearest()),
+                .set(ImagePlugin::default_nearest())
+                .set(RenderPlugin {
+                    render_creation: RenderCreation::Automatic(WgpuSettings {
+                        // WARN this is a native only feature. It will not work with webgl or webgpu
+                        features: WgpuFeatures::POLYGON_MODE_LINE,
+                        ..default()
+                    }),
+                    ..default()
+                }),
         );
 
         // Add other plugins.

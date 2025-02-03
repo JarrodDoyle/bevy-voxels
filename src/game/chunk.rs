@@ -1,5 +1,6 @@
 use bevy::{
     asset::RenderAssetUsages,
+    pbr::wireframe::Wireframe,
     prelude::*,
     render::mesh::{Indices, PrimitiveTopology},
     utils::HashMap,
@@ -178,7 +179,9 @@ fn sys_chunk_spawner(
                         ChunkNeedsMeshing,
                         Transform::from_xyz(x as f32 * 32., y as f32 * 32., z as f32 * 32.),
                     ))
-                    .observe(break_place_block);
+                    .observe(break_place_block)
+                    .observe(hover_block)
+                    .observe(unhover_block);
             }
         }
     }
@@ -343,6 +346,14 @@ fn sys_chunk_mesher(
             commands.entity(id).remove::<(Mesh3d, ChunkNeedsMeshing)>();
         }
     }
+}
+
+fn hover_block(trigger: Trigger<Pointer<Over>>, mut commands: Commands) {
+    commands.entity(trigger.entity()).insert(Wireframe);
+}
+
+fn unhover_block(trigger: Trigger<Pointer<Out>>, mut commands: Commands) {
+    commands.entity(trigger.entity()).remove::<Wireframe>();
 }
 
 fn break_place_block(
