@@ -1,5 +1,6 @@
 //! The game's main screen states and transitions between them.
 
+mod gameplay;
 mod loading;
 mod splash;
 
@@ -8,7 +9,7 @@ use bevy::prelude::*;
 pub(super) fn plugin(app: &mut App) {
     app.init_state::<Screen>();
     app.enable_state_scoped_entities::<Screen>();
-    app.add_plugins((loading::plugin, splash::plugin));
+    app.add_plugins((loading::plugin, splash::plugin, gameplay::plugin));
 }
 
 /// The game's main screen states.

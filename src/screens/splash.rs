@@ -10,7 +10,6 @@ use crate::{screens::Screen, theme::prelude::*, AppSet};
 
 pub(super) fn plugin(app: &mut App) {
     // Spawn splash screen.
-    app.insert_resource(ClearColor(SPLASH_BACKGROUND_COLOR));
     app.add_systems(OnEnter(Screen::Splash), spawn_splash_screen);
 
     // Animate splash screen.
@@ -49,6 +48,7 @@ const SPLASH_DURATION_SECS: f32 = 1.8;
 const SPLASH_FADE_DURATION_SECS: f32 = 0.6;
 
 fn spawn_splash_screen(mut commands: Commands, asset_server: Res<AssetServer>) {
+    commands.insert_resource(ClearColor(SPLASH_BACKGROUND_COLOR));
     commands.spawn((StateScoped(Screen::Splash), Camera2d));
 
     commands
