@@ -22,7 +22,7 @@ Model(
                     uv: (1.0, 0.0),
                 )
             ],
-            cull: Some(0),
+            cull: None,
         ),
         (
             texture: "right",
@@ -45,7 +45,7 @@ Model(
                     uv: (1.0, 0.0),
                 )
             ],
-            cull: Some(1),
+            cull: None,
         ),
         (
             texture: "up",
