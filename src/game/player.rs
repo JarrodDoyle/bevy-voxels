@@ -1,11 +1,11 @@
 use bevy::{
-    input::mouse::MouseMotion,
+    input::mouse::{MouseMotion, MouseWheel},
     pbr::wireframe::Wireframe,
     prelude::*,
     window::{CursorGrabMode, PrimaryWindow},
 };
 
-use crate::{asset_registry::AssetRegistry, screens::Screen};
+use crate::{asset_registry::AssetRegistry, block_type::BlockType, screens::Screen};
 
 use super::chunk::{Chunk, ChunkNeedsMeshing, VoxelStorage};
 
@@ -32,6 +32,7 @@ pub(super) fn plugin(app: &mut App) {
             player_show_block_highlight,
             player_break_place_block,
             player_modify_speed,
+            player_scroll_inventory,
         )
             .run_if(in_state(Screen::Gameplay)),
     );
@@ -74,18 +75,34 @@ pub struct Player;
 #[derive(Component)]
 pub struct HoverHighlight;
 
+#[derive(Component)]
+pub struct Hotbar {
+    pub slots: Vec<Option<BlockType>>,
+    pub active_slot: usize,
+}
+
 fn setup_player(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
+    registry: Res<AssetRegistry>,
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
     commands.spawn((
+        StateScoped(Screen::Gameplay),
         Camera3d::default(),
         // Transform::default(),
         Transform::from_xyz(-2.0, 5.0, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
         Player,
         MovementSettings::default(),
-        StateScoped(Screen::Gameplay),
+        Hotbar {
+            slots: vec![
+                Some(registry.get_block_id("grass")),
+                Some(registry.get_block_id("dirt")),
+                Some(registry.get_block_id("stone")),
+                Some(registry.get_block_id("stone_fence")),
+            ],
+            active_slot: 0,
+        },
     ));
 
     commands.spawn((
@@ -240,6 +257,32 @@ fn player_toggle_active(
     };
 }
 
+fn player_scroll_inventory(
+    mut scrolls: EventReader<MouseWheel>,
+    mut query_player: Query<(&MovementSettings, &mut Hotbar), With<Player>>,
+) {
+    let (movement_settings, mut hotbar) = query_player.single_mut();
+    if !movement_settings.active {
+        return;
+    }
+
+    let mut delta = 0.;
+    for event in scrolls.read() {
+        delta += event.y;
+    }
+    delta = delta.floor();
+
+    if delta == 0.0 {
+        return;
+    }
+
+    if delta.is_sign_positive() {
+        hotbar.active_slot = (hotbar.active_slot + 1) % hotbar.slots.len();
+    } else if delta.is_sign_negative() {
+        hotbar.active_slot = (hotbar.active_slot + hotbar.slots.len() - 1) % hotbar.slots.len();
+    }
+}
+
 fn player_show_block_highlight(
     mut ray_cast: MeshRayCast,
     query_player: Query<&Transform, With<Player>>,
@@ -270,18 +313,22 @@ pub fn player_break_place_block(
     mouse_buttons: Res<ButtonInput<MouseButton>>,
     registry: Res<AssetRegistry>,
     mut ray_cast: MeshRayCast,
-    query_player: Query<&Transform, With<Player>>,
+    query_player: Query<(&Hotbar, &Transform), With<Player>>,
     mut query_storage: Query<&mut VoxelStorage>,
     query_chunk: Query<(Entity, &Chunk)>,
 ) {
-    let player_transform = query_player.single();
+    let (player_hotbar, player_transform) = query_player.single();
     let mut storage = query_storage.single_mut();
 
     let (normal_multiplier, block_type, destroying) =
         if mouse_buttons.just_pressed(MouseButton::Left) {
             (-0.01, registry.get_block_id("air"), true)
         } else if mouse_buttons.just_pressed(MouseButton::Right) {
-            (0.99, registry.get_block_id("stone"), false)
+            let block = player_hotbar.slots[player_hotbar.active_slot];
+            if block.is_none() {
+                return;
+            }
+            (0.99, block.unwrap(), false)
         } else {
             return;
         };
