@@ -216,13 +216,14 @@ pub fn player_break_place_block(
     let player_transform = query_player.single();
     let mut storage = query_storage.single_mut();
 
-    let (normal_multiplier, block_type) = if mouse_buttons.just_pressed(MouseButton::Left) {
-        (-0.01, registry.get_block_id("air"))
-    } else if mouse_buttons.just_pressed(MouseButton::Right) {
-        (0.99, registry.get_block_id("stone"))
-    } else {
-        return;
-    };
+    let (normal_multiplier, block_type, destroying) =
+        if mouse_buttons.just_pressed(MouseButton::Left) {
+            (-0.01, registry.get_block_id("air"), true)
+        } else if mouse_buttons.just_pressed(MouseButton::Right) {
+            (0.99, registry.get_block_id("stone"), false)
+        } else {
+            return;
+        };
 
     let ray = Ray3d::new(player_transform.translation, player_transform.forward());
     let filter = |id| query_chunk.contains(id);
@@ -238,7 +239,13 @@ pub fn player_break_place_block(
         let local_y = (world_pos[1] as i32 - cy * storage.chunk_len as i32) as usize;
         let local_z = (world_pos[2] as i32 - cz * storage.chunk_len as i32) as usize;
 
-        storage.set_voxel(&[cx, cy, cz], local_x, local_y, local_z, block_type);
+        if destroying
+            || storage
+                .get_voxel(&[cx, cy, cz], local_x, local_y, local_z)
+                .is_some_and(|b| b == registry.get_block_id("air"))
+        {
+            storage.set_voxel(&[cx, cy, cz], local_x, local_y, local_z, block_type);
+        }
 
         let mut needs_meshing = vec![[cx, cy, cz]];
         if local_x == 0 {
