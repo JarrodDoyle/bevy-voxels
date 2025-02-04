@@ -74,7 +74,11 @@ pub struct Player;
 #[derive(Component)]
 pub struct HoverHighlight;
 
-fn setup_player(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>) {
+fn setup_player(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut meshes: ResMut<Assets<Mesh>>,
+) {
     commands.spawn((
         Camera3d::default(),
         // Transform::default(),
@@ -93,6 +97,33 @@ fn setup_player(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>) {
         PickingBehavior::IGNORE,
         StateScoped(Screen::Gameplay),
     ));
+
+    // TODO: Move to loading screen
+    let crosshair = asset_server.load("images/crosshair.png");
+    commands
+        .spawn((
+            StateScoped(Screen::Gameplay),
+            Node {
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                width: Val::Percent(100.0),
+                height: Val::Percent(100.0),
+                position_type: PositionType::Absolute,
+                ..default()
+            },
+        ))
+        .with_children(|parent| {
+            parent.spawn((
+                ImageNode {
+                    image: crosshair,
+                    ..default()
+                },
+                Node {
+                    width: Val::Px(32.0),
+                    ..default()
+                },
+            ));
+        });
 }
 
 fn player_modify_speed(
