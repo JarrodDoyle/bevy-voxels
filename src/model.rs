@@ -24,7 +24,7 @@ impl Model {
         let f_len = self.faces.len();
         for i in 0..f_len {
             let face = &self.faces[i];
-            if face.cull.is_none_or(|c| cull[c]) {
+            if face.cull.is_some_and(|c| cull[c]) {
                 continue;
             }
 
