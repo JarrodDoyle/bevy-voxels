@@ -9,10 +9,7 @@ use fastnoise2::SafeNode;
 use crate::{
     asset_registry::AssetRegistry,
     block_type::{Block, BlockType},
-    game::{
-        mesh::ATTRIBUTE_TEXTURE,
-        player::{break_place_block, hover_block, hover_move_block, unhover_block},
-    },
+    game::mesh::ATTRIBUTE_TEXTURE,
     model::Model,
     screens::Screen,
     AppSet,
@@ -175,16 +172,11 @@ fn sys_chunk_spawner(
                 let world_pos = [x as i32, y as i32, z as i32];
                 storage.load_chunk(&world_pos, chunk_voxels);
 
-                commands
-                    .spawn((
-                        Chunk { world_pos },
-                        ChunkNeedsMeshing,
-                        Transform::from_xyz(x as f32 * 32., y as f32 * 32., z as f32 * 32.),
-                    ))
-                    .observe(break_place_block)
-                    .observe(hover_block)
-                    .observe(hover_move_block)
-                    .observe(unhover_block);
+                commands.spawn((
+                    Chunk { world_pos },
+                    ChunkNeedsMeshing,
+                    Transform::from_xyz(x as f32 * 32., y as f32 * 32., z as f32 * 32.),
+                ));
             }
         }
     }

@@ -20,10 +20,17 @@ pub(super) fn plugin(app: &mut App) {
         backward: KeyCode::KeyS,
         mouse_sensitivity: 0.0001,
     });
-    app.add_systems(OnEnter(Screen::Gameplay), (setup_hover, setup_player));
+    app.add_systems(OnEnter(Screen::Gameplay), setup_player);
     app.add_systems(
         Update,
-        (player_move, player_look, player_toggle_active).run_if(in_state(Screen::Gameplay)),
+        (
+            player_move,
+            player_look,
+            player_toggle_active,
+            player_show_block_highlight,
+            player_break_place_block,
+        )
+            .run_if(in_state(Screen::Gameplay)),
     );
 }
 
@@ -59,13 +66,25 @@ impl Default for MovementSettings {
 #[derive(Component)]
 pub struct Player;
 
-fn setup_player(mut commands: Commands) {
+#[derive(Component)]
+pub struct HoverHighlight;
+
+fn setup_player(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>) {
     commands.spawn((
         Camera3d::default(),
         // Transform::default(),
         Transform::from_xyz(-2.0, 5.0, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
         Player,
         MovementSettings::default(),
+    ));
+
+    commands.spawn((
+        HoverHighlight,
+        Mesh3d(meshes.add(Cuboid::default())),
+        Transform::default(),
+        Visibility::Hidden,
+        Wireframe,
+        PickingBehavior::IGNORE,
     ));
 }
 
@@ -160,93 +179,91 @@ fn player_toggle_active(
     };
 }
 
-fn setup_hover(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>) {
-    commands.spawn((
-        HoverHighlight,
-        Mesh3d(meshes.add(Cuboid::default())),
-        Transform::default(),
-        Visibility::Hidden,
-        Wireframe,
-        PickingBehavior::IGNORE,
-    ));
-}
-
-#[derive(Component)]
-pub struct HoverHighlight;
-
-pub fn hover_block(
-    _trigger: Trigger<Pointer<Over>>,
-    mut query: Query<&mut Visibility, With<HoverHighlight>>,
+fn player_show_block_highlight(
+    mut ray_cast: MeshRayCast,
+    query_player: Query<&Transform, With<Player>>,
+    query_chunk: Query<&Chunk>,
+    mut query_highlight: Query<
+        (&mut Transform, &mut Visibility),
+        (With<HoverHighlight>, Without<Player>),
+    >,
 ) {
-    *query.single_mut() = Visibility::Visible;
+    let player_transform = query_player.single();
+    let (mut highlight_transform, mut highlight_visible) = query_highlight.single_mut();
+
+    let ray = Ray3d::new(player_transform.translation, player_transform.forward());
+    let filter = |id| query_chunk.contains(id);
+    let raycast_setings = RayCastSettings::default().with_filter(&filter);
+
+    if let Some((_, hit)) = ray_cast.cast_ray(ray, &raycast_setings).first() {
+        let hit_pos = (hit.point - hit.normal.normalize_or_zero() * 0.01).floor();
+        highlight_transform.translation = hit_pos + Vec3::new(0.5, 0.5, 0.5);
+        *highlight_visible = Visibility::Visible;
+    } else {
+        *highlight_visible = Visibility::Hidden;
+    }
 }
 
-pub fn hover_move_block(
-    trigger: Trigger<Pointer<Move>>,
-    mut query: Query<&mut Transform, With<HoverHighlight>>,
-) {
-    let hit_pos = (trigger.hit.position.unwrap() - trigger.hit.normal.unwrap() * 0.01).floor();
-    query.single_mut().translation = hit_pos + Vec3::new(0.5, 0.5, 0.5);
-}
-
-pub fn unhover_block(
-    _trigger: Trigger<Pointer<Out>>,
-    mut query: Query<&mut Visibility, With<HoverHighlight>>,
-) {
-    *query.single_mut() = Visibility::Hidden;
-}
-
-pub fn break_place_block(
-    click: Trigger<Pointer<Click>>,
+pub fn player_break_place_block(
     mut commands: Commands,
+    mouse_buttons: Res<ButtonInput<MouseButton>>,
     registry: Res<AssetRegistry>,
+    mut ray_cast: MeshRayCast,
+    query_player: Query<&Transform, With<Player>>,
     mut query_storage: Query<&mut VoxelStorage>,
     query_chunk: Query<(Entity, &Chunk)>,
 ) {
+    let player_transform = query_player.single();
     let mut storage = query_storage.single_mut();
 
-    let hit_pos = (click.hit.position.unwrap() - click.hit.normal.unwrap() * 0.01).floor();
-    let (world_pos, block_type) = match click.button {
-        PointerButton::Primary => (hit_pos, registry.get_block_id("air")),
-        PointerButton::Secondary => (
-            (hit_pos + click.hit.normal.unwrap()).floor(),
-            registry.get_block_id("stone"),
-        ),
-        PointerButton::Middle => return,
+    let (normal_multiplier, block_type) = if mouse_buttons.just_pressed(MouseButton::Left) {
+        (-0.01, registry.get_block_id("air"))
+    } else if mouse_buttons.just_pressed(MouseButton::Right) {
+        (0.99, registry.get_block_id("stone"))
+    } else {
+        return;
     };
 
-    let cx = (world_pos[0] / storage.chunk_len as f32).floor() as i32;
-    let cy = (world_pos[1] / storage.chunk_len as f32).floor() as i32;
-    let cz = (world_pos[2] / storage.chunk_len as f32).floor() as i32;
-    let local_x = (world_pos[0] as i32 - cx * storage.chunk_len as i32) as usize;
-    let local_y = (world_pos[1] as i32 - cy * storage.chunk_len as i32) as usize;
-    let local_z = (world_pos[2] as i32 - cz * storage.chunk_len as i32) as usize;
+    let ray = Ray3d::new(player_transform.translation, player_transform.forward());
+    let filter = |id| query_chunk.contains(id);
+    let raycast_setings = RayCastSettings::default().with_filter(&filter);
 
-    storage.set_voxel(&[cx, cy, cz], local_x, local_y, local_z, block_type);
+    if let Some((_, hit)) = ray_cast.cast_ray(ray, &raycast_setings).first() {
+        let world_pos = (hit.point + hit.normal.normalize_or_zero() * normal_multiplier).floor();
 
-    let mut needs_meshing = vec![[cx, cy, cz]];
-    if local_x == 0 {
-        needs_meshing.push([cx - 1, cy, cz]);
-    }
-    if local_x == storage.chunk_len - 1 {
-        needs_meshing.push([cx + 1, cy, cz]);
-    }
-    if local_y == 0 {
-        needs_meshing.push([cx, cy - 1, cz]);
-    }
-    if local_y == storage.chunk_len - 1 {
-        needs_meshing.push([cx, cy + 1, cz]);
-    }
-    if local_z == 0 {
-        needs_meshing.push([cx, cy, cz - 1]);
-    }
-    if local_z == storage.chunk_len - 1 {
-        needs_meshing.push([cx, cy, cz + 1]);
-    }
+        let cx = (world_pos[0] / storage.chunk_len as f32).floor() as i32;
+        let cy = (world_pos[1] / storage.chunk_len as f32).floor() as i32;
+        let cz = (world_pos[2] / storage.chunk_len as f32).floor() as i32;
+        let local_x = (world_pos[0] as i32 - cx * storage.chunk_len as i32) as usize;
+        let local_y = (world_pos[1] as i32 - cy * storage.chunk_len as i32) as usize;
+        let local_z = (world_pos[2] as i32 - cz * storage.chunk_len as i32) as usize;
 
-    for (id, chunk) in &query_chunk {
-        if needs_meshing.contains(&chunk.world_pos) {
-            commands.entity(id).insert(ChunkNeedsMeshing);
+        storage.set_voxel(&[cx, cy, cz], local_x, local_y, local_z, block_type);
+
+        let mut needs_meshing = vec![[cx, cy, cz]];
+        if local_x == 0 {
+            needs_meshing.push([cx - 1, cy, cz]);
+        }
+        if local_x == storage.chunk_len - 1 {
+            needs_meshing.push([cx + 1, cy, cz]);
+        }
+        if local_y == 0 {
+            needs_meshing.push([cx, cy - 1, cz]);
+        }
+        if local_y == storage.chunk_len - 1 {
+            needs_meshing.push([cx, cy + 1, cz]);
+        }
+        if local_z == 0 {
+            needs_meshing.push([cx, cy, cz - 1]);
+        }
+        if local_z == storage.chunk_len - 1 {
+            needs_meshing.push([cx, cy, cz + 1]);
+        }
+
+        for (id, chunk) in &query_chunk {
+            if needs_meshing.contains(&chunk.world_pos) {
+                commands.entity(id).insert(ChunkNeedsMeshing);
+            }
         }
     }
 }
