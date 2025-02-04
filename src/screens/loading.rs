@@ -30,6 +30,8 @@ pub(super) fn plugin(app: &mut App) {
 }
 
 fn spawn_loading_screen(mut commands: Commands) {
+    commands.spawn((StateScoped(Screen::Loading), Camera2d));
+
     commands
         .ui_root()
         .insert(StateScoped(Screen::Loading))
