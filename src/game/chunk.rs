@@ -173,6 +173,7 @@ fn sys_chunk_spawner(
                 storage.load_chunk(&world_pos, chunk_voxels);
 
                 commands.spawn((
+                    StateScoped(Screen::Gameplay),
                     Chunk { world_pos },
                     ChunkNeedsMeshing,
                     Transform::from_xyz(x as f32 * 32., y as f32 * 32., z as f32 * 32.),
@@ -181,7 +182,7 @@ fn sys_chunk_spawner(
         }
     }
 
-    commands.spawn(storage);
+    commands.spawn((StateScoped(Screen::Gameplay), storage));
 }
 
 fn sys_chunk_mesher(

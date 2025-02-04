@@ -81,6 +81,7 @@ fn setup_player(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>) {
         Transform::from_xyz(-2.0, 5.0, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
         Player,
         MovementSettings::default(),
+        StateScoped(Screen::Gameplay),
     ));
 
     commands.spawn((
@@ -90,6 +91,7 @@ fn setup_player(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>) {
         Visibility::Hidden,
         Wireframe,
         PickingBehavior::IGNORE,
+        StateScoped(Screen::Gameplay),
     ));
 }
 
