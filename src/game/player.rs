@@ -19,6 +19,8 @@ pub(super) fn plugin(app: &mut App) {
         forward: KeyCode::KeyW,
         backward: KeyCode::KeyS,
         mouse_sensitivity: 0.0001,
+        decrease_speed: KeyCode::Minus,
+        increase_speed: KeyCode::Equal,
     });
     app.add_systems(OnEnter(Screen::Gameplay), setup_player);
     app.add_systems(
@@ -29,6 +31,7 @@ pub(super) fn plugin(app: &mut App) {
             player_toggle_active,
             player_show_block_highlight,
             player_break_place_block,
+            player_modify_speed,
         )
             .run_if(in_state(Screen::Gameplay)),
     );
@@ -44,6 +47,8 @@ pub struct PlayerMovementControls {
     pub forward: KeyCode,
     pub backward: KeyCode,
     pub mouse_sensitivity: f32,
+    pub increase_speed: KeyCode,
+    pub decrease_speed: KeyCode,
 }
 
 #[derive(Component)]
@@ -86,6 +91,29 @@ fn setup_player(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>) {
         Wireframe,
         PickingBehavior::IGNORE,
     ));
+}
+
+fn player_modify_speed(
+    keys: Res<ButtonInput<KeyCode>>,
+    controls: Res<PlayerMovementControls>,
+    mut query_player: Query<&mut MovementSettings, With<Player>>,
+) {
+    let mut movement_settings = query_player.single_mut();
+    if !movement_settings.active {
+        return;
+    }
+
+    let base = movement_settings.base_speed;
+    let mut target_speed = movement_settings.speed;
+
+    if keys.just_pressed(controls.increase_speed) {
+        target_speed += base;
+    }
+    if keys.just_pressed(controls.decrease_speed) {
+        target_speed -= base;
+    }
+
+    movement_settings.speed = f32::clamp(target_speed, base, base * 10.);
 }
 
 fn player_move(
