@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::{asset_registry::AssetRegistry, block_type::Block};
+use crate::block_type::Block;
 
 #[derive(serde::Deserialize, Asset, TypePath)]
 pub struct Model {
@@ -18,7 +18,6 @@ impl Model {
         uvs: &mut Vec<[f32; 2]>,
         ts: &mut Vec<u32>,
         block: &Block,
-        registry: &AssetRegistry,
     ) {
         let mut first_unculled = -1;
         for i in 0..self.faces.len() {
@@ -32,7 +31,7 @@ impl Model {
             return;
         }
 
-        let default_t = registry.get_texture_id(&block.textures["default"]);
+        let default_t = block.texture_ids["default"];
 
         let f_len = self.faces.len();
         for i in 0..f_len {
@@ -41,8 +40,8 @@ impl Model {
                 continue;
             }
 
-            let t = if block.textures.contains_key(&face.texture) {
-                registry.get_texture_id(&block.textures[&face.texture])
+            let t = if block.texture_ids.contains_key(&face.texture) {
+                block.texture_ids[&face.texture]
             } else {
                 default_t
             };

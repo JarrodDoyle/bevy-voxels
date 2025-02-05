@@ -314,7 +314,6 @@ fn sys_chunk_mesher(
                         &mut uvs,
                         &mut ts,
                         block,
-                        &registry,
                     );
                 }
             }
