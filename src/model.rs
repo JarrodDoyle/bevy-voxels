@@ -16,7 +16,6 @@ impl Model {
         ns: &mut Vec<[f32; 3]>,
         uvs: &mut Vec<[f32; 2]>,
         ts: &mut Vec<u32>,
-        is: &mut Vec<u32>,
         texture_map: &HashMap<String, u32>,
     ) {
         let default_t = *texture_map.get("default").unwrap();
@@ -34,7 +33,6 @@ impl Model {
                 default_t
             };
 
-            let vcount = vs.len() as u32;
             let fv_len = face.vertices.len();
             for j in 0..fv_len {
                 let v = &face.vertices[j];
@@ -46,12 +44,6 @@ impl Model {
                 ns.push(face.normal);
                 uvs.push(v.uv);
                 ts.push(t);
-            }
-
-            for j in 1..(fv_len as u32 - 1) {
-                is.push(vcount);
-                is.push(vcount + j);
-                is.push(vcount + j + 1);
             }
         }
     }

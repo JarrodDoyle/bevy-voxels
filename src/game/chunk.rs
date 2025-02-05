@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use bevy::{
     asset::RenderAssetUsages,
     prelude::*,
@@ -251,10 +253,11 @@ fn sys_chunk_mesher(
         };
 
     for (id, chunk, _) in &chunks_query {
+        let start_time = Instant::now();
+
         let world_pos: &[i32; 3] = &chunk.world_pos;
 
         let mut vs: Vec<[f32; 3]> = vec![];
-        let mut is = vec![];
         let mut ns = vec![];
         let mut uvs = vec![];
         let mut ts = vec![];
@@ -316,12 +319,24 @@ fn sys_chunk_mesher(
                         &mut ns,
                         &mut uvs,
                         &mut ts,
-                        &mut is,
                         &texture_map,
                     );
                 }
             }
         }
+
+        let quad_count = vs.len() / 4;
+        let mut is = Vec::with_capacity(6 * quad_count);
+        for i in 0..quad_count as u32 {
+            is.push(i * 4);
+            is.push(i * 4 + 1);
+            is.push(i * 4 + 2);
+            is.push(i * 4);
+            is.push(i * 4 + 2);
+            is.push(i * 4 + 3);
+        }
+
+        let mid_time = Instant::now();
 
         if !vs.is_empty() {
             let mesh = Mesh::new(
@@ -341,5 +356,12 @@ fn sys_chunk_mesher(
             // TODO: Remove meshmaterial?
             commands.entity(id).remove::<(Mesh3d, ChunkNeedsMeshing)>();
         }
+
+        let end_time = Instant::now();
+        info!(
+            "Generated mesh data in {}ms. Fully meshed chunk in {}ms",
+            (mid_time - start_time).as_millis(),
+            (end_time - start_time).as_millis()
+        );
     }
 }
