@@ -20,6 +20,18 @@ impl Model {
         block: &Block,
         registry: &AssetRegistry,
     ) {
+        let mut first_unculled = -1;
+        for i in 0..self.faces.len() {
+            if self.faces[i].cull.is_none_or(|c| !cull[c]) {
+                first_unculled = i as i32;
+                break;
+            }
+        }
+
+        if first_unculled == -1 {
+            return;
+        }
+
         let default_t = registry.get_texture_id(&block.textures["default"]);
 
         let f_len = self.faces.len();
