@@ -353,31 +353,31 @@ pub fn player_break_place_block(
                 .is_some_and(|b| b == registry.get_block_id("air"))
         {
             storage.set_voxel(&[cx, cy, cz], local_x, local_y, local_z, block_type);
-        }
 
-        let mut needs_meshing = vec![[cx, cy, cz]];
-        if local_x == 0 {
-            needs_meshing.push([cx - 1, cy, cz]);
-        }
-        if local_x == storage.chunk_len - 1 {
-            needs_meshing.push([cx + 1, cy, cz]);
-        }
-        if local_y == 0 {
-            needs_meshing.push([cx, cy - 1, cz]);
-        }
-        if local_y == storage.chunk_len - 1 {
-            needs_meshing.push([cx, cy + 1, cz]);
-        }
-        if local_z == 0 {
-            needs_meshing.push([cx, cy, cz - 1]);
-        }
-        if local_z == storage.chunk_len - 1 {
-            needs_meshing.push([cx, cy, cz + 1]);
-        }
+            let mut needs_meshing = vec![[cx, cy, cz]];
+            if local_x == 0 {
+                needs_meshing.push([cx - 1, cy, cz]);
+            }
+            if local_x == storage.chunk_len - 1 {
+                needs_meshing.push([cx + 1, cy, cz]);
+            }
+            if local_y == 0 {
+                needs_meshing.push([cx, cy - 1, cz]);
+            }
+            if local_y == storage.chunk_len - 1 {
+                needs_meshing.push([cx, cy + 1, cz]);
+            }
+            if local_z == 0 {
+                needs_meshing.push([cx, cy, cz - 1]);
+            }
+            if local_z == storage.chunk_len - 1 {
+                needs_meshing.push([cx, cy, cz + 1]);
+            }
 
-        for (id, chunk) in &query_chunk {
-            if needs_meshing.contains(&chunk.world_pos) {
-                commands.entity(id).insert(ChunkNeedsMeshing);
+            for (id, chunk) in &query_chunk {
+                if needs_meshing.contains(&chunk.world_pos) {
+                    commands.entity(id).insert(ChunkNeedsMeshing);
+                }
             }
         }
     }
