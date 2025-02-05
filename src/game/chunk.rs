@@ -70,6 +70,14 @@ impl VoxelStorage {
         }
     }
 
+    pub fn get_chunk(&self, chunk_pos: &[i32; 3]) -> Option<&Vec<BlockType>> {
+        self.voxels.get(chunk_pos)
+    }
+
+    pub fn get_chunk_mut(&mut self, chunk_pos: &[i32; 3]) -> Option<&mut Vec<BlockType>> {
+        self.voxels.get_mut(chunk_pos)
+    }
+
     pub fn load_chunk(&mut self, chunk_pos: &[i32; 3], chunk_voxels: Vec<BlockType>) {
         assert_eq!(
             chunk_voxels.len(),
