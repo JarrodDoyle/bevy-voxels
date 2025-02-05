@@ -87,7 +87,7 @@ impl VoxelStorage {
         self.voxels.insert(*chunk_pos, chunk_voxels);
     }
 
-    fn local_pos_to_idx(&self, x: usize, y: usize, z: usize) -> usize {
+    pub fn local_pos_to_idx(&self, x: usize, y: usize, z: usize) -> usize {
         x + y * self.chunk_len + z * self.chunk_len * self.chunk_len
     }
 }
