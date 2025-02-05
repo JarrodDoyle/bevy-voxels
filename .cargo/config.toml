@@ -2,7 +2,7 @@
 linker = "clang"
 rustflags = [
     "-Clink-arg=-fuse-ld=mold",
-    "-Clink-arg=-Wl,--no-rosegment",
+    # "-Clink-arg=-Wl,--no-rosegment",
     "-Zshare-generics=y",
 ]
 
