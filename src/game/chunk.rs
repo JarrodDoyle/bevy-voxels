@@ -252,6 +252,7 @@ fn sys_chunk_mesher(
             )
         };
 
+    let mut total_us = 0;
     for (id, chunk, _) in &chunks_query {
         let start_time = Instant::now();
 
@@ -273,6 +274,8 @@ fn sys_chunk_mesher(
                         continue;
                     }
 
+                    let block = block.unwrap();
+
                     let mut cull = [false; 6];
                     for i in 0..NEIGHBOUR_OFFSETS.len() {
                         let offset = NEIGHBOUR_OFFSETS[i];
@@ -293,33 +296,25 @@ fn sys_chunk_mesher(
                             None => None,
                         };
 
-                        cull[i] = n_block.is_some_and(|b| b.model == block.unwrap().model);
+                        if n_block.is_some_and(|b| b.model == block.model) {
+                            cull[i] = true;
+                        }
                     }
 
-                    let xf = x as f32;
-                    let yf = y as f32;
-                    let zf = z as f32;
-
-                    // TODO: Replace this with passing registry?
-                    let mut texture_map = HashMap::<String, u32>::new();
-                    let textures = &block.unwrap().textures;
-                    for k in textures.keys() {
-                        texture_map.insert(k.to_string(), registry.get_texture_id(&textures[k]));
-                    }
-
-                    let model_name = &block.unwrap().model.clone().unwrap();
+                    let model_name = &block.model.clone().unwrap();
                     let model = models
                         .get(registry.get_model_handle(model_name).id())
                         .unwrap();
 
                     model.mesh(
                         &cull,
-                        &[xf, yf, zf],
+                        &[x as f32, y as f32, z as f32],
                         &mut vs,
                         &mut ns,
                         &mut uvs,
                         &mut ts,
-                        &texture_map,
+                        block,
+                        &registry,
                     );
                 }
             }
@@ -363,5 +358,11 @@ fn sys_chunk_mesher(
             (mid_time - start_time).as_millis(),
             (end_time - start_time).as_millis()
         );
+
+        total_us += (end_time - start_time).as_micros();
+    }
+
+    if total_us != 0 {
+        info!("Total mesh generation time {}us.", total_us);
     }
 }

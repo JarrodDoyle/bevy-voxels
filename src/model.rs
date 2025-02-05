@@ -1,4 +1,6 @@
-use bevy::{prelude::*, utils::HashMap};
+use bevy::prelude::*;
+
+use crate::{asset_registry::AssetRegistry, block_type::Block};
 
 #[derive(serde::Deserialize, Asset, TypePath)]
 pub struct Model {
@@ -7,7 +9,6 @@ pub struct Model {
 }
 
 impl Model {
-    // TODO: correct textures
     pub fn mesh(
         &self,
         cull: &[bool; 6],
@@ -16,9 +17,10 @@ impl Model {
         ns: &mut Vec<[f32; 3]>,
         uvs: &mut Vec<[f32; 2]>,
         ts: &mut Vec<u32>,
-        texture_map: &HashMap<String, u32>,
+        block: &Block,
+        registry: &AssetRegistry,
     ) {
-        let default_t = *texture_map.get("default").unwrap();
+        let default_t = registry.get_texture_id(&block.textures["default"]);
 
         let f_len = self.faces.len();
         for i in 0..f_len {
@@ -27,8 +29,8 @@ impl Model {
                 continue;
             }
 
-            let t = if texture_map.contains_key(&face.texture) {
-                texture_map[&face.texture]
+            let t = if block.textures.contains_key(&face.texture) {
+                registry.get_texture_id(&block.textures[&face.texture])
             } else {
                 default_t
             };
