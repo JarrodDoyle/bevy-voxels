@@ -253,6 +253,7 @@ fn sys_chunk_mesher(
         };
 
     let mut total_us = 0;
+    let mut chunk_count = 0;
     for (id, chunk, _) in &chunks_query {
         let start_time = Instant::now();
 
@@ -330,8 +331,6 @@ fn sys_chunk_mesher(
             is.push(i * 4 + 3);
         }
 
-        let mid_time = Instant::now();
-
         if !vs.is_empty() {
             let mesh = Mesh::new(
                 PrimitiveTopology::TriangleList,
@@ -351,17 +350,14 @@ fn sys_chunk_mesher(
             commands.entity(id).remove::<(Mesh3d, ChunkNeedsMeshing)>();
         }
 
-        let end_time = Instant::now();
-        info!(
-            "Generated mesh data in {}ms. Fully meshed chunk in {}ms",
-            (mid_time - start_time).as_millis(),
-            (end_time - start_time).as_millis()
-        );
-
-        total_us += (end_time - start_time).as_micros();
+        total_us += (Instant::now() - start_time).as_micros();
+        chunk_count += 1;
     }
 
     if total_us != 0 {
-        info!("Total mesh generation time {}us.", total_us);
+        info!(
+            "Meshed {chunk_count} chunks in {total_us}. Avg: {}",
+            total_us / chunk_count
+        );
     }
 }
