@@ -220,52 +220,22 @@ fn sys_chunk_mesher(
         [0, 0, -1], // back
     ];
 
-    let get_neighbour_pos =
-        |chunk_len: usize, chunk_pos: &[i32; 3], local_pos: &[i32; 3], offset: &[i32; 3]| {
-            let mut local_x = local_pos[0] + offset[0];
-            let mut local_y = local_pos[1] + offset[1];
-            let mut local_z = local_pos[2] + offset[2];
-
-            let mut new_chunk_pos = [chunk_pos[0], chunk_pos[1], chunk_pos[2]];
-            if local_x < 0 {
-                new_chunk_pos[0] -= 1;
-                local_x += chunk_len as i32;
-            }
-            if local_y < 0 {
-                new_chunk_pos[1] -= 1;
-                local_y += chunk_len as i32;
-            }
-            if local_z < 0 {
-                new_chunk_pos[2] -= 1;
-                local_z += chunk_len as i32;
-            }
-            if local_x >= chunk_len as i32 {
-                new_chunk_pos[0] += 1;
-                local_x -= chunk_len as i32;
-            }
-            if local_y >= chunk_len as i32 {
-                new_chunk_pos[1] += 1;
-                local_y -= chunk_len as i32;
-            }
-            if local_z >= chunk_len as i32 {
-                new_chunk_pos[2] += 1;
-                local_z -= chunk_len as i32;
-            }
-
-            (
-                new_chunk_pos,
-                local_x as usize,
-                local_y as usize,
-                local_z as usize,
-            )
-        };
-
     let mut total_us = 0;
     let mut chunk_count = 0;
     for (id, chunk, _) in &chunks_query {
         let start_time = Instant::now();
 
-        let world_pos: &[i32; 3] = &chunk.world_pos;
+        let cx = chunk.world_pos[0];
+        let cy = chunk.world_pos[1];
+        let cz = chunk.world_pos[2];
+
+        let chunk_voxels = voxel_storage.get_chunk(&chunk.world_pos);
+        let left_chunk_voxels = voxel_storage.get_chunk(&[cx - 1, cy, cz]);
+        let right_chunk_voxels = voxel_storage.get_chunk(&[cx + 1, cy, cz]);
+        let up_chunk_voxels = voxel_storage.get_chunk(&[cx, cy + 1, cz]);
+        let down_chunk_voxels = voxel_storage.get_chunk(&[cx, cy - 1, cz]);
+        let front_chunk_voxels = voxel_storage.get_chunk(&[cx, cy, cz + 1]);
+        let back_chunk_voxels = voxel_storage.get_chunk(&[cx, cy, cz - 1]);
 
         let mut vs: Vec<[f32; 3]> = vec![];
         let mut ns = vec![];
@@ -274,38 +244,59 @@ fn sys_chunk_mesher(
         for z in 0..voxel_storage.chunk_len {
             for y in 0..voxel_storage.chunk_len {
                 for x in 0..voxel_storage.chunk_len {
-                    let block = match voxel_storage.get_voxel(world_pos, x, y, z) {
-                        Some(i) => blocks.get(registry.get_block_handle_by_id(i).id()),
-                        None => None,
-                    };
+                    let block_type = chunk_voxels.unwrap()[voxel_storage.local_pos_to_idx(x, y, z)];
+                    let block = blocks
+                        .get(registry.get_block_handle_by_id(block_type).id())
+                        .unwrap();
 
-                    if block.is_none_or(|b| b.model.is_none()) {
+                    if block.model.is_none() {
                         continue;
                     }
-
-                    let block = block.unwrap();
 
                     let mut cull = [false; 6];
                     for i in 0..NEIGHBOUR_OFFSETS.len() {
                         let offset = NEIGHBOUR_OFFSETS[i];
-                        let (n_chunk_pos, n_local_x, n_local_y, n_local_z) = get_neighbour_pos(
-                            voxel_storage.chunk_len,
-                            world_pos,
-                            &[x as i32, y as i32, z as i32],
-                            &offset,
-                        );
 
-                        let n_block = match voxel_storage.get_voxel(
-                            &n_chunk_pos,
-                            n_local_x,
-                            n_local_y,
-                            n_local_z,
-                        ) {
-                            Some(i) => blocks.get(registry.get_block_handle_by_id(i).id()),
-                            None => None,
+                        let mut n_local_x = x as i32 + offset[0];
+                        let mut n_local_y = y as i32 + offset[1];
+                        let mut n_local_z = z as i32 + offset[2];
+
+                        let neighbor_chunk = if n_local_x < 0 {
+                            n_local_x += voxel_storage.chunk_len as i32;
+                            left_chunk_voxels
+                        } else if n_local_x >= voxel_storage.chunk_len as i32 {
+                            n_local_x -= voxel_storage.chunk_len as i32;
+                            right_chunk_voxels
+                        } else if n_local_y < 0 {
+                            n_local_y += voxel_storage.chunk_len as i32;
+                            down_chunk_voxels
+                        } else if n_local_y >= voxel_storage.chunk_len as i32 {
+                            n_local_y -= voxel_storage.chunk_len as i32;
+                            up_chunk_voxels
+                        } else if n_local_z < 0 {
+                            n_local_z += voxel_storage.chunk_len as i32;
+                            back_chunk_voxels
+                        } else if n_local_z >= voxel_storage.chunk_len as i32 {
+                            n_local_z -= voxel_storage.chunk_len as i32;
+                            front_chunk_voxels
+                        } else {
+                            chunk_voxels
                         };
 
-                        if n_block.is_some_and(|b| b.model == block.model) {
+                        if neighbor_chunk.is_none() {
+                            continue;
+                        }
+
+                        let n_block_type = neighbor_chunk.unwrap()[voxel_storage.local_pos_to_idx(
+                            n_local_x as usize,
+                            n_local_y as usize,
+                            n_local_z as usize,
+                        )];
+
+                        if blocks
+                            .get(registry.get_block_handle_by_id(n_block_type).id())
+                            .is_some_and(|b| b.model == block.model)
+                        {
                             cull[i] = true;
                         }
                     }
