@@ -9,7 +9,7 @@ use bevy_common_assets::ron::RonAssetPlugin;
 
 use crate::{
     asset_registry::{construct_asset_registry, AssetRegistry},
-    block_type::Block,
+    block_type::{set_block_texture_id_maps, Block},
     model::Model,
     screens::Screen,
     theme::prelude::*,
@@ -26,7 +26,10 @@ pub(super) fn plugin(app: &mut App) {
             .load_collection::<AssetRegistry>(),
     );
     app.add_systems(OnEnter(Screen::Loading), spawn_loading_screen);
-    app.add_systems(OnExit(Screen::Loading), construct_asset_registry);
+    app.add_systems(
+        OnExit(Screen::Loading),
+        (construct_asset_registry, set_block_texture_id_maps).chain(),
+    );
 }
 
 fn spawn_loading_screen(mut commands: Commands) {
