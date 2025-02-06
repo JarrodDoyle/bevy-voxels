@@ -5,7 +5,7 @@ use crate::block_type::Block;
 #[derive(serde::Deserialize, Asset, TypePath)]
 pub struct Model {
     pub identifier: String,
-    faces: Vec<Face>,
+    pub faces: Vec<Face>,
 }
 
 impl Model {
@@ -63,15 +63,15 @@ impl Model {
 }
 
 #[derive(serde::Deserialize)]
-struct Face {
-    texture: String,
-    normal: [f32; 3],
-    vertices: Vec<Vertex>,
-    cull: Option<usize>,
+pub struct Face {
+    pub texture: String,
+    pub normal: [f32; 3],
+    pub vertices: Vec<Vertex>,
+    pub cull: Option<usize>,
 }
 
 #[derive(serde::Deserialize)]
-struct Vertex {
-    position: [f32; 3],
-    uv: [f32; 2],
+pub struct Vertex {
+    pub position: [f32; 3],
+    pub uv: [f32; 2],
 }

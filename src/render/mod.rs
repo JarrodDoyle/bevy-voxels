@@ -1,3 +1,4 @@
+mod block_highlight;
 mod chunk_mesh;
 mod sky;
 mod wireframe;
@@ -14,6 +15,7 @@ impl Plugin for RenderPlugin {
             sky::SkyPlugin,
             chunk_mesh::ChunkMeshPlugin,
             wireframe::WireframePlugin,
+            block_highlight::BlockHighlightPlugin,
         ));
     }
 }

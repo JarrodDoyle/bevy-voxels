@@ -6,7 +6,10 @@ use bevy::{
 };
 
 use crate::{
-    asset_registry::AssetRegistry, block_type::BlockType, render::ChunkNeedsMeshing,
+    asset_registry::AssetRegistry,
+    block_type::{Block, BlockType},
+    model::Model,
+    render::ChunkNeedsMeshing,
     screens::Screen,
 };
 
@@ -76,7 +79,7 @@ impl Default for MovementSettings {
 pub struct Player;
 
 #[derive(Component)]
-pub struct HoverHighlight;
+pub struct HoverHighlight(pub Option<Handle<Model>>);
 
 #[derive(Component)]
 pub struct Hotbar {
@@ -108,7 +111,7 @@ fn setup_player(
     ));
 
     commands.spawn((
-        HoverHighlight,
+        HoverHighlight(None),
         Mesh3d(meshes.add(Cuboid::default())),
         Transform::default(),
         Visibility::Hidden,
@@ -260,15 +263,20 @@ fn player_scroll_inventory(
 
 fn player_show_block_highlight(
     mut ray_cast: MeshRayCast,
+    registry: Res<AssetRegistry>,
+    blocks: Res<Assets<Block>>,
     query_player: Query<&Transform, With<Player>>,
     query_chunk: Query<&Chunk>,
+    query_storage: Query<&VoxelStorage>,
     mut query_highlight: Query<
-        (&mut Transform, &mut Visibility),
-        (With<HoverHighlight>, Without<Player>),
+        (&mut Transform, &mut Visibility, &mut HoverHighlight),
+        Without<Player>,
     >,
 ) {
     let player_transform = query_player.single();
-    let (mut highlight_transform, mut highlight_visible) = query_highlight.single_mut();
+    let storage = query_storage.single();
+    let (mut highlight_transform, mut highlight_visible, mut highlight_model_handle) =
+        query_highlight.single_mut();
 
     let ray = Ray3d::new(player_transform.translation, player_transform.forward());
     let filter = |id| query_chunk.contains(id);
@@ -276,8 +284,28 @@ fn player_show_block_highlight(
 
     if let Some((_, hit)) = ray_cast.cast_ray(ray, &raycast_setings).first() {
         let hit_pos = (hit.point - hit.normal.normalize_or_zero() * 0.01).floor();
-        highlight_transform.translation = hit_pos + Vec3::new(0.5, 0.5, 0.5);
+        highlight_transform.translation = hit_pos;
         *highlight_visible = Visibility::Visible;
+
+        let cx = (hit_pos[0] / storage.chunk_len as f32).floor() as i32;
+        let cy = (hit_pos[1] / storage.chunk_len as f32).floor() as i32;
+        let cz = (hit_pos[2] / storage.chunk_len as f32).floor() as i32;
+        let local_x = (hit_pos[0] as i32 - cx * storage.chunk_len as i32) as usize;
+        let local_y = (hit_pos[1] as i32 - cy * storage.chunk_len as i32) as usize;
+        let local_z = (hit_pos[2] as i32 - cz * storage.chunk_len as i32) as usize;
+
+        if let Some(block_id) = storage.get_voxel(&[cx, cy, cz], local_x, local_y, local_z) {
+            let block = blocks
+                .get(registry.get_block_handle_by_id(block_id).id())
+                .unwrap();
+
+            if let Some(model_name) = &block.model {
+                let model_handle = Some(registry.get_model_handle(model_name));
+                if model_handle != highlight_model_handle.0 {
+                    highlight_model_handle.0 = model_handle;
+                }
+            }
+        }
     } else {
         *highlight_visible = Visibility::Hidden;
     }

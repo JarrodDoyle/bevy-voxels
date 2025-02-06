@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 mod chunk;
-mod player;
+pub mod player;
 
 pub use chunk::{Chunk, VoxelStorage};
 
