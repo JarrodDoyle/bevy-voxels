@@ -5,9 +5,12 @@ use bevy::{
     window::{CursorGrabMode, PrimaryWindow},
 };
 
-use crate::{asset_registry::AssetRegistry, block_type::BlockType, screens::Screen};
+use crate::{
+    asset_registry::AssetRegistry, block_type::BlockType, render::ChunkNeedsMeshing,
+    screens::Screen,
+};
 
-use super::chunk::{Chunk, ChunkNeedsMeshing, VoxelStorage};
+use super::chunk::{Chunk, VoxelStorage};
 
 pub(super) fn plugin(app: &mut App) {
     app.insert_resource(PlayerMovementControls {

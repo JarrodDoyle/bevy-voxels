@@ -4,6 +4,7 @@ mod block_type;
 mod dev_tools;
 mod game;
 mod model;
+mod render;
 mod screens;
 mod ui;
 
@@ -73,6 +74,7 @@ impl Plugin for AppPlugin {
             ui::UiPlugin,
             asset_registry::AssetRegistryPlugin,
             screens::plugin,
+            render::RenderPlugin,
         ));
 
         // Enable dev tools for dev builds.
