@@ -241,14 +241,17 @@ fn sys_chunk_mesher(
         let mut ns = vec![];
         let mut uvs = vec![];
         let mut ts = vec![];
+
+        let mut idx = 0;
         for z in 0..voxel_storage.chunk_len {
             for y in 0..voxel_storage.chunk_len {
                 for x in 0..voxel_storage.chunk_len {
-                    let block_type = chunk_voxels.unwrap()[voxel_storage.local_pos_to_idx(x, y, z)];
+                    let block_type = chunk_voxels.unwrap()[idx];
                     let block = blocks
                         .get(registry.get_block_handle_by_id(block_type).id())
                         .unwrap();
 
+                    idx += 1;
                     if block.model.is_none() {
                         continue;
                     }
