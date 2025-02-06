@@ -5,9 +5,38 @@ use bevy::{
     render::render_resource::{Extent3d, TextureDimension, TextureFormat},
     utils::HashMap,
 };
-use bevy_asset_loader::{asset_collection::AssetCollection, mapped::MapKey};
+use bevy_asset_loader::{
+    asset_collection::AssetCollection,
+    loading_state::{config::ConfigureLoadingState, LoadingState, LoadingStateAppExt},
+    mapped::MapKey,
+};
+use bevy_common_assets::ron::RonAssetPlugin;
 
-use crate::{block_type::Block, model::Model};
+use crate::{
+    block_type::{set_block_texture_id_maps, Block},
+    model::Model,
+    screens::Screen,
+};
+
+pub struct AssetRegistryPlugin;
+
+impl Plugin for AssetRegistryPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_plugins((
+            RonAssetPlugin::<Model>::new(&["model.ron"]),
+            RonAssetPlugin::<Block>::new(&["block.ron"]),
+        ));
+        app.add_loading_state(
+            LoadingState::new(Screen::Loading)
+                .continue_to_state(Screen::Gameplay)
+                .load_collection::<AssetRegistry>(),
+        );
+        app.add_systems(
+            OnExit(Screen::Loading),
+            (construct_asset_registry, set_block_texture_id_maps).chain(),
+        );
+    }
+}
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct AssetFileStem(pub String);
@@ -126,7 +155,7 @@ impl AssetRegistry {
     }
 }
 
-pub fn construct_asset_registry(
+fn construct_asset_registry(
     mut registry: ResMut<AssetRegistry>,
     asset_server: Res<AssetServer>,
     images: Res<Assets<Image>>,

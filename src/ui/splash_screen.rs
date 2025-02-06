@@ -1,46 +1,48 @@
-//! A splash screen that plays briefly at startup.
-
 use bevy::{
     image::{ImageLoaderSettings, ImageSampler},
     input::common_conditions::input_just_pressed,
     prelude::*,
 };
 
-use crate::{screens::Screen, theme::prelude::*, AppSet};
+use crate::{screens::Screen, ui::theme::prelude::*, AppSet};
 
-pub(super) fn plugin(app: &mut App) {
-    // Spawn splash screen.
-    app.add_systems(OnEnter(Screen::Splash), spawn_splash_screen);
+pub struct SplashScreenUiPlugin;
 
-    // Animate splash screen.
-    app.add_systems(
-        Update,
-        (
-            tick_fade_in_out.in_set(AppSet::TickTimers),
-            apply_fade_in_out.in_set(AppSet::Update),
-        )
-            .run_if(in_state(Screen::Splash)),
-    );
+impl Plugin for SplashScreenUiPlugin {
+    fn build(&self, app: &mut App) {
+        // Spawn splash screen.
+        app.add_systems(OnEnter(Screen::Splash), spawn_splash_screen);
 
-    // Add splash timer.
-    app.register_type::<SplashTimer>();
-    app.add_systems(OnEnter(Screen::Splash), insert_splash_timer);
-    app.add_systems(OnExit(Screen::Splash), remove_splash_timer);
-    app.add_systems(
-        Update,
-        (
-            tick_splash_timer.in_set(AppSet::TickTimers),
-            check_splash_timer.in_set(AppSet::Update),
-        )
-            .run_if(in_state(Screen::Splash)),
-    );
+        // Animate splash screen.
+        app.add_systems(
+            Update,
+            (
+                tick_fade_in_out.in_set(AppSet::TickTimers),
+                apply_fade_in_out.in_set(AppSet::Update),
+            )
+                .run_if(in_state(Screen::Splash)),
+        );
 
-    // Exit the splash screen early if the player hits escape.
-    app.add_systems(
-        Update,
-        continue_to_loading_screen
-            .run_if(input_just_pressed(KeyCode::Escape).and(in_state(Screen::Splash))),
-    );
+        // Add splash timer.
+        app.register_type::<SplashTimer>();
+        app.add_systems(OnEnter(Screen::Splash), insert_splash_timer);
+        app.add_systems(OnExit(Screen::Splash), remove_splash_timer);
+        app.add_systems(
+            Update,
+            (
+                tick_splash_timer.in_set(AppSet::TickTimers),
+                check_splash_timer.in_set(AppSet::Update),
+            )
+                .run_if(in_state(Screen::Splash)),
+        );
+
+        // Exit the splash screen early if the player hits escape.
+        app.add_systems(
+            Update,
+            continue_to_loading_screen
+                .run_if(input_just_pressed(KeyCode::Escape).and(in_state(Screen::Splash))),
+        );
+    }
 }
 
 const SPLASH_BACKGROUND_COLOR: Color = Color::srgb(0.157, 0.157, 0.157);

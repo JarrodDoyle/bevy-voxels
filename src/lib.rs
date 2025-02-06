@@ -5,7 +5,7 @@ mod dev_tools;
 mod game;
 mod model;
 mod screens;
-mod theme;
+mod ui;
 
 use bevy::{
     audio::{AudioPlugin, Volume},
@@ -68,7 +68,12 @@ impl Plugin for AppPlugin {
         );
 
         // Add other plugins.
-        app.add_plugins((game::plugin, screens::plugin, theme::plugin));
+        app.add_plugins((
+            game::plugin,
+            ui::UiPlugin,
+            asset_registry::AssetRegistryPlugin,
+            screens::plugin,
+        ));
 
         // Enable dev tools for dev builds.
         #[cfg(feature = "dev")]
