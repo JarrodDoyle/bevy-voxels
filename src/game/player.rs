@@ -79,7 +79,16 @@ impl Default for MovementSettings {
 pub struct Player;
 
 #[derive(Component)]
-pub struct HoverHighlight(pub Option<Handle<Model>>);
+pub struct HoverHighlight;
+
+#[derive(Component, Default)]
+pub struct TargetBlock {
+    pub chunk_pos: [i32; 3],
+    pub local_pos: [usize; 3],
+    pub block_type: BlockType,
+    pub block_handle: Option<Handle<Block>>,
+    pub model_handle: Option<Handle<Model>>,
+}
 
 #[derive(Component)]
 pub struct Hotbar {
@@ -111,7 +120,8 @@ fn setup_player(
     ));
 
     commands.spawn((
-        HoverHighlight(None),
+        HoverHighlight,
+        TargetBlock::default(),
         Mesh3d(meshes.add(Cuboid::default())),
         Transform::default(),
         Visibility::Hidden,
@@ -269,13 +279,13 @@ fn player_show_block_highlight(
     query_chunk: Query<&Chunk>,
     query_storage: Query<&VoxelStorage>,
     mut query_highlight: Query<
-        (&mut Transform, &mut Visibility, &mut HoverHighlight),
-        Without<Player>,
+        (&mut Transform, &mut Visibility, &mut TargetBlock),
+        (With<HoverHighlight>, Without<Player>),
     >,
 ) {
     let player_transform = query_player.single();
     let storage = query_storage.single();
-    let (mut highlight_transform, mut highlight_visible, mut highlight_model_handle) =
+    let (mut highlight_transform, mut highlight_visible, mut highlight_target) =
         query_highlight.single_mut();
 
     let ray = Ray3d::new(player_transform.translation, player_transform.forward());
@@ -294,16 +304,28 @@ fn player_show_block_highlight(
         let local_y = (hit_pos[1] as i32 - cy * storage.chunk_len as i32) as usize;
         let local_z = (hit_pos[2] as i32 - cz * storage.chunk_len as i32) as usize;
 
-        if let Some(block_id) = storage.get_voxel(&[cx, cy, cz], local_x, local_y, local_z) {
+        // Avoids triggering a Change<TargetBlock>
+        let chunk_pos = [cx, cy, cz];
+        let local_pos = [local_x, local_y, local_z];
+        if highlight_target.chunk_pos == chunk_pos && highlight_target.local_pos == local_pos {
+            return;
+        }
+
+        if let Some(block_id) = storage.get_voxel(&chunk_pos, local_x, local_y, local_z) {
+            highlight_target.chunk_pos = chunk_pos;
+            highlight_target.local_pos = local_pos;
+            highlight_target.block_type = block_id;
+
+            let block_handle = registry.get_block_handle_by_id(block_id);
+            highlight_target.block_handle = Some(block_handle);
+
             let block = blocks
                 .get(registry.get_block_handle_by_id(block_id).id())
                 .unwrap();
 
             if let Some(model_name) = &block.model {
                 let model_handle = Some(registry.get_model_handle(model_name));
-                if model_handle != highlight_model_handle.0 {
-                    highlight_model_handle.0 = model_handle;
-                }
+                highlight_target.model_handle = model_handle;
             }
         }
     } else {
@@ -311,6 +333,7 @@ fn player_show_block_highlight(
     }
 }
 
+// TODO: Refactor to use TargetBlock
 pub fn player_break_place_block(
     mut commands: Commands,
     mouse_buttons: Res<ButtonInput<MouseButton>>,

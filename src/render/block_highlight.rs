@@ -4,7 +4,11 @@ use bevy::{
     render::mesh::{Indices, PrimitiveTopology},
 };
 
-use crate::{game::player::HoverHighlight, model::Model, screens::Screen};
+use crate::{
+    game::player::{HoverHighlight, TargetBlock},
+    model::Model,
+    screens::Screen,
+};
 
 pub struct BlockHighlightPlugin;
 
@@ -20,13 +24,16 @@ impl Plugin for BlockHighlightPlugin {
 fn update_highlight_mesh(
     models: Res<Assets<Model>>,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut query_highlight: Query<(&mut Mesh3d, &HoverHighlight), Changed<HoverHighlight>>,
+    mut query_highlight: Query<
+        (&mut Mesh3d, &TargetBlock),
+        (With<HoverHighlight>, Changed<TargetBlock>),
+    >,
 ) {
-    let Ok((mut hover_mesh, hover_highlight)) = query_highlight.get_single_mut() else {
+    let Ok((mut hover_mesh, hover_target)) = query_highlight.get_single_mut() else {
         return;
     };
 
-    if let Some(handle) = &hover_highlight.0 {
+    if let Some(handle) = &hover_target.model_handle {
         let model = models.get(handle.id()).unwrap();
 
         let mut vs = vec![];
