@@ -6,7 +6,7 @@ use bevy::{
 };
 
 use crate::{
-    assets::{Block, BlockType, Model, Registry},
+    assets::{BlockType, Registry},
     render::ChunkNeedsMeshing,
     screens::Screen,
 };
@@ -83,9 +83,8 @@ pub struct HoverHighlight;
 pub struct TargetBlock {
     pub chunk_pos: [i32; 3],
     pub local_pos: [usize; 3],
-    pub block_type: BlockType,
-    pub block_handle: Option<Handle<Block>>,
-    pub model_handle: Option<Handle<Model>>,
+    pub block_id: usize,
+    pub model_id: Option<usize>,
 }
 
 #[derive(Component)]
@@ -268,7 +267,6 @@ fn player_scroll_inventory(
 fn player_show_block_highlight(
     mut ray_cast: MeshRayCast,
     registry: Res<Registry>,
-    blocks: Res<Assets<Block>>,
     query_player: Query<&Transform, With<Player>>,
     query_chunk: Query<&Chunk>,
     query_storage: Query<&VoxelStorage>,
@@ -306,21 +304,11 @@ fn player_show_block_highlight(
         }
 
         if let Some(block_id) = storage.get_voxel(&chunk_pos, local_x, local_y, local_z) {
+            let block = registry.get_block(block_id);
             highlight_target.chunk_pos = chunk_pos;
             highlight_target.local_pos = local_pos;
-            highlight_target.block_type = block_id;
-
-            let block_handle = registry.get_block_handle_by_id(block_id);
-            highlight_target.block_handle = Some(block_handle);
-
-            let block = blocks
-                .get(registry.get_block_handle_by_id(block_id).id())
-                .unwrap();
-
-            if let Some(model_name) = &block.model {
-                let model_handle = Some(registry.get_model_handle(model_name));
-                highlight_target.model_handle = model_handle;
-            }
+            highlight_target.block_id = block_id;
+            highlight_target.model_id = block.model;
         }
     } else {
         *highlight_visible = Visibility::Hidden;

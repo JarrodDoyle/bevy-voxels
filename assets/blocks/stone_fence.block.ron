@@ -1,4 +1,4 @@
-Block(
+BlockDef(
     identifier: "stone_fence",
     model: Some("fence"),
     textures: {

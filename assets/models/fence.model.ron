@@ -1,4 +1,4 @@
-Model(
+ModelDef(
     identifier: "fence",
     faces: [
         (

@@ -1,11 +1,11 @@
-mod block_type;
+mod block;
 mod model;
 mod registry;
 
 use bevy::prelude::*;
 
 pub use {
-    block_type::{Block, BlockType},
+    block::{Block, BlockType},
     model::Model,
     registry::Registry,
 };

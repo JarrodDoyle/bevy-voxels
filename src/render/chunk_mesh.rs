@@ -10,7 +10,7 @@ use bevy::{
 };
 
 use crate::{
-    assets::{Block, Model, Registry},
+    assets::Registry,
     game::{Chunk, VoxelStorage},
     screens::Screen,
     AppSet,
@@ -72,8 +72,6 @@ impl Material for ArrayTextureMaterial {
 fn sys_chunk_mesher(
     mut commands: Commands,
     registry: Res<Registry>,
-    models: Res<Assets<Model>>,
-    blocks: Res<Assets<Block>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ArrayTextureMaterial>>,
     query_storage: Query<&VoxelStorage>,
@@ -120,10 +118,8 @@ fn sys_chunk_mesher(
         for z in 0..voxel_storage.chunk_len {
             for y in 0..voxel_storage.chunk_len {
                 for x in 0..voxel_storage.chunk_len {
-                    let block_type = chunk_voxels.unwrap()[idx];
-                    let block = blocks
-                        .get(registry.get_block_handle_by_id(block_type).id())
-                        .unwrap();
+                    let block_id = chunk_voxels.unwrap()[idx];
+                    let block = registry.get_block(block_id);
 
                     idx += 1;
                     if block.model.is_none() {
@@ -164,25 +160,18 @@ fn sys_chunk_mesher(
                             continue;
                         }
 
-                        let n_block_type = neighbor_chunk.unwrap()[voxel_storage.local_pos_to_idx(
+                        let n_block_id = neighbor_chunk.unwrap()[voxel_storage.local_pos_to_idx(
                             n_local_x as usize,
                             n_local_y as usize,
                             n_local_z as usize,
                         )];
 
-                        if blocks
-                            .get(registry.get_block_handle_by_id(n_block_type).id())
-                            .is_some_and(|b| b.model == block.model)
-                        {
+                        if registry.get_block(n_block_id).model == block.model {
                             cull[i] = true;
                         }
                     }
 
-                    let model_name = &block.model.clone().unwrap();
-                    let model = models
-                        .get(registry.get_model_handle(model_name).id())
-                        .unwrap();
-
+                    let model = registry.get_model(block.model.unwrap());
                     model.mesh(
                         &cull,
                         &[x as f32, y as f32, z as f32],

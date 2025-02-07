@@ -5,7 +5,7 @@ use bevy::{
 };
 
 use crate::{
-    assets::Model,
+    assets::Registry,
     game::player::{HoverHighlight, TargetBlock},
     screens::Screen,
 };
@@ -22,7 +22,7 @@ impl Plugin for BlockHighlightPlugin {
 }
 
 fn update_highlight_mesh(
-    models: Res<Assets<Model>>,
+    registry: Res<Registry>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut query_highlight: Query<
         (&mut Mesh3d, &TargetBlock),
@@ -33,8 +33,8 @@ fn update_highlight_mesh(
         return;
     };
 
-    if let Some(handle) = &hover_target.model_handle {
-        let model = models.get(handle.id()).unwrap();
+    if let Some(model_id) = hover_target.model_id {
+        let model = registry.get_model(model_id);
 
         let mut vs = vec![];
         let mut is = vec![];

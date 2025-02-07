@@ -1,8 +1,13 @@
 use bevy::prelude::*;
 
-use super::block_type::Block;
+use super::block::Block;
 
 #[derive(serde::Deserialize, Asset, TypePath)]
+pub struct ModelDef {
+    pub identifier: String,
+    pub faces: Vec<Face>,
+}
+
 pub struct Model {
     pub identifier: String,
     pub faces: Vec<Face>,
@@ -31,7 +36,7 @@ impl Model {
             return;
         }
 
-        let default_t = block.texture_ids["default"];
+        let default_t = block.textures["default"];
 
         let f_len = self.faces.len();
         for i in 0..f_len {
@@ -40,8 +45,8 @@ impl Model {
                 continue;
             }
 
-            let t = if block.texture_ids.contains_key(&face.texture) {
-                block.texture_ids[&face.texture]
+            let t = if block.textures.contains_key(&face.texture) {
+                block.textures[&face.texture]
             } else {
                 default_t
             };
@@ -56,13 +61,13 @@ impl Model {
                 ]);
                 ns.push(face.normal);
                 uvs.push(v.uv);
-                ts.push(t);
+                ts.push(t as u32);
             }
         }
     }
 }
 
-#[derive(serde::Deserialize)]
+#[derive(Debug, Clone, serde::Deserialize)]
 pub struct Face {
     pub texture: String,
     pub normal: [f32; 3],
@@ -70,7 +75,7 @@ pub struct Face {
     pub cull: Option<usize>,
 }
 
-#[derive(serde::Deserialize)]
+#[derive(Debug, Clone, Copy, serde::Deserialize)]
 pub struct Vertex {
     pub position: [f32; 3],
     pub uv: [f32; 2],
