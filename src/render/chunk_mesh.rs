@@ -72,13 +72,11 @@ impl Material for ArrayTextureMaterial {
 fn sys_chunk_mesher(
     mut commands: Commands,
     registry: Res<Registry>,
+    storage: Res<VoxelStorage>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ArrayTextureMaterial>>,
-    query_storage: Query<&VoxelStorage>,
     chunks_query: Query<(Entity, &Chunk, &ChunkNeedsMeshing)>,
 ) {
-    let voxel_storage = query_storage.single();
-
     let material_handle = materials.add(ArrayTextureMaterial {
         array_texture: registry.block_array_texture.clone(),
     });
@@ -101,13 +99,13 @@ fn sys_chunk_mesher(
         let cy = chunk.world_pos[1];
         let cz = chunk.world_pos[2];
 
-        let chunk_voxels = voxel_storage.get_chunk(&chunk.world_pos);
-        let left_chunk_voxels = voxel_storage.get_chunk(&[cx - 1, cy, cz]);
-        let right_chunk_voxels = voxel_storage.get_chunk(&[cx + 1, cy, cz]);
-        let up_chunk_voxels = voxel_storage.get_chunk(&[cx, cy + 1, cz]);
-        let down_chunk_voxels = voxel_storage.get_chunk(&[cx, cy - 1, cz]);
-        let front_chunk_voxels = voxel_storage.get_chunk(&[cx, cy, cz + 1]);
-        let back_chunk_voxels = voxel_storage.get_chunk(&[cx, cy, cz - 1]);
+        let chunk_voxels = storage.get_chunk(&chunk.world_pos);
+        let left_chunk_voxels = storage.get_chunk(&[cx - 1, cy, cz]);
+        let right_chunk_voxels = storage.get_chunk(&[cx + 1, cy, cz]);
+        let up_chunk_voxels = storage.get_chunk(&[cx, cy + 1, cz]);
+        let down_chunk_voxels = storage.get_chunk(&[cx, cy - 1, cz]);
+        let front_chunk_voxels = storage.get_chunk(&[cx, cy, cz + 1]);
+        let back_chunk_voxels = storage.get_chunk(&[cx, cy, cz - 1]);
 
         let mut vs: Vec<[f32; 3]> = vec![];
         let mut ns = vec![];
@@ -115,9 +113,9 @@ fn sys_chunk_mesher(
         let mut ts = vec![];
 
         let mut idx = 0;
-        for z in 0..voxel_storage.chunk_len {
-            for y in 0..voxel_storage.chunk_len {
-                for x in 0..voxel_storage.chunk_len {
+        for z in 0..storage.chunk_len {
+            for y in 0..storage.chunk_len {
+                for x in 0..storage.chunk_len {
                     let block_id = chunk_voxels.unwrap()[idx];
                     let block = registry.get_block(block_id);
 
@@ -135,22 +133,22 @@ fn sys_chunk_mesher(
                         let mut n_local_z = z as i32 + offset[2];
 
                         let neighbor_chunk = if n_local_x < 0 {
-                            n_local_x += voxel_storage.chunk_len as i32;
+                            n_local_x += storage.chunk_len as i32;
                             left_chunk_voxels
-                        } else if n_local_x >= voxel_storage.chunk_len as i32 {
-                            n_local_x -= voxel_storage.chunk_len as i32;
+                        } else if n_local_x >= storage.chunk_len as i32 {
+                            n_local_x -= storage.chunk_len as i32;
                             right_chunk_voxels
                         } else if n_local_y < 0 {
-                            n_local_y += voxel_storage.chunk_len as i32;
+                            n_local_y += storage.chunk_len as i32;
                             down_chunk_voxels
-                        } else if n_local_y >= voxel_storage.chunk_len as i32 {
-                            n_local_y -= voxel_storage.chunk_len as i32;
+                        } else if n_local_y >= storage.chunk_len as i32 {
+                            n_local_y -= storage.chunk_len as i32;
                             up_chunk_voxels
                         } else if n_local_z < 0 {
-                            n_local_z += voxel_storage.chunk_len as i32;
+                            n_local_z += storage.chunk_len as i32;
                             back_chunk_voxels
-                        } else if n_local_z >= voxel_storage.chunk_len as i32 {
-                            n_local_z -= voxel_storage.chunk_len as i32;
+                        } else if n_local_z >= storage.chunk_len as i32 {
+                            n_local_z -= storage.chunk_len as i32;
                             front_chunk_voxels
                         } else {
                             chunk_voxels
@@ -160,7 +158,7 @@ fn sys_chunk_mesher(
                             continue;
                         }
 
-                        let n_block_id = neighbor_chunk.unwrap()[voxel_storage.local_pos_to_idx(
+                        let n_block_id = neighbor_chunk.unwrap()[storage.local_pos_to_idx(
                             n_local_x as usize,
                             n_local_y as usize,
                             n_local_z as usize,

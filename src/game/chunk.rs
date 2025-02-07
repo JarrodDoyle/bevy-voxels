@@ -10,7 +10,7 @@ use crate::{
 pub(super) fn plugin(app: &mut App) {
     app.add_systems(
         OnEnter(Screen::Gameplay),
-        (setup_noise, sys_chunk_spawner).chain(),
+        (setup, sys_chunk_spawner).chain(),
     );
 }
 
@@ -19,7 +19,7 @@ struct WorldNoise {
     terrain: SafeNode,
 }
 
-#[derive(Component)]
+#[derive(Resource)]
 pub struct VoxelStorage {
     pub chunk_len: usize,
     pub voxels: HashMap<[i32; 3], Vec<BlockType>>,
@@ -79,23 +79,23 @@ pub struct Chunk {
     pub world_pos: [i32; 3],
 }
 
-fn setup_noise(mut commands: Commands) {
+fn setup(mut commands: Commands) {
     let encoded_node_tree = "DQADAAAAAAAAQCkAAAAAAD8AAAAAAA==";
     let node = SafeNode::from_encoded_node_tree(encoded_node_tree).unwrap();
 
     commands.insert_resource(WorldNoise { terrain: node });
+    commands.insert_resource(VoxelStorage {
+        chunk_len: 32,
+        voxels: HashMap::<[i32; 3], Vec<BlockType>>::new(),
+    });
 }
 
 fn sys_chunk_spawner(
     mut commands: Commands,
+    mut storage: ResMut<VoxelStorage>,
     world_noise: Res<WorldNoise>,
     registry: Res<Registry>,
 ) {
-    let mut storage = VoxelStorage {
-        chunk_len: 32,
-        voxels: HashMap::<[i32; 3], Vec<BlockType>>::new(),
-    };
-
     const FREQUENCY: f32 = 0.005;
     const SEED: i32 = 1338;
 
@@ -170,6 +170,4 @@ fn sys_chunk_spawner(
             }
         }
     }
-
-    commands.spawn((StateScoped(Screen::Gameplay), storage));
 }

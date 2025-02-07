@@ -267,16 +267,15 @@ fn player_scroll_inventory(
 fn player_show_block_highlight(
     mut ray_cast: MeshRayCast,
     registry: Res<Registry>,
+    storage: Res<VoxelStorage>,
     query_player: Query<&Transform, With<Player>>,
     query_chunk: Query<&Chunk>,
-    query_storage: Query<&VoxelStorage>,
     mut query_highlight: Query<
         (&mut Transform, &mut Visibility, &mut TargetBlock),
         (With<HoverHighlight>, Without<Player>),
     >,
 ) {
     let player_transform = query_player.single();
-    let storage = query_storage.single();
     let (mut highlight_transform, mut highlight_visible, mut highlight_target) =
         query_highlight.single_mut();
 
@@ -320,13 +319,12 @@ pub fn player_break_place_block(
     mut commands: Commands,
     mouse_buttons: Res<ButtonInput<MouseButton>>,
     registry: Res<Registry>,
+    mut storage: ResMut<VoxelStorage>,
     mut ray_cast: MeshRayCast,
     query_player: Query<(&Hotbar, &Transform), With<Player>>,
-    mut query_storage: Query<&mut VoxelStorage>,
     query_chunk: Query<(Entity, &Chunk)>,
 ) {
     let (player_hotbar, player_transform) = query_player.single();
-    let mut storage = query_storage.single_mut();
 
     let (normal_multiplier, block_type, destroying) =
         if mouse_buttons.just_pressed(MouseButton::Left) {
