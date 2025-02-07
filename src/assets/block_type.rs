@@ -1,6 +1,6 @@
 use bevy::{prelude::*, utils::HashMap};
 
-use crate::asset_registry::AssetRegistry;
+use crate::assets::Registry;
 
 #[derive(serde::Deserialize, Asset, TypePath)]
 pub struct Block {
@@ -14,7 +14,7 @@ pub struct Block {
 
 pub type BlockType = u32;
 
-pub fn set_block_texture_id_maps(registry: Res<AssetRegistry>, mut blocks: ResMut<Assets<Block>>) {
+pub fn set_block_texture_id_maps(registry: Res<Registry>, mut blocks: ResMut<Assets<Block>>) {
     for (_, block) in blocks.iter_mut() {
         for (k, v) in &block.textures {
             block

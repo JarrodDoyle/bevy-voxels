@@ -6,9 +6,7 @@ use bevy::{
 };
 
 use crate::{
-    asset_registry::AssetRegistry,
-    block_type::{Block, BlockType},
-    model::Model,
+    assets::{Block, BlockType, Model, Registry},
     render::ChunkNeedsMeshing,
     screens::Screen,
 };
@@ -96,11 +94,7 @@ pub struct Hotbar {
     pub active_slot: usize,
 }
 
-fn setup_player(
-    mut commands: Commands,
-    registry: Res<AssetRegistry>,
-    mut meshes: ResMut<Assets<Mesh>>,
-) {
+fn setup_player(mut commands: Commands, registry: Res<Registry>, mut meshes: ResMut<Assets<Mesh>>) {
     commands.spawn((
         StateScoped(Screen::Gameplay),
         Camera3d::default(),
@@ -273,7 +267,7 @@ fn player_scroll_inventory(
 
 fn player_show_block_highlight(
     mut ray_cast: MeshRayCast,
-    registry: Res<AssetRegistry>,
+    registry: Res<Registry>,
     blocks: Res<Assets<Block>>,
     query_player: Query<&Transform, With<Player>>,
     query_chunk: Query<&Chunk>,
@@ -337,7 +331,7 @@ fn player_show_block_highlight(
 pub fn player_break_place_block(
     mut commands: Commands,
     mouse_buttons: Res<ButtonInput<MouseButton>>,
-    registry: Res<AssetRegistry>,
+    registry: Res<Registry>,
     mut ray_cast: MeshRayCast,
     query_player: Query<(&Hotbar, &Transform), With<Player>>,
     mut query_storage: Query<&mut VoxelStorage>,

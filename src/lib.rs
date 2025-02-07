@@ -1,9 +1,7 @@
-mod asset_registry;
-mod block_type;
+mod assets;
 #[cfg(feature = "dev")]
 mod dev_tools;
 mod game;
-mod model;
 mod render;
 mod screens;
 mod ui;
@@ -70,9 +68,9 @@ impl Plugin for AppPlugin {
 
         // Add other plugins.
         app.add_plugins((
+            assets::AssetsPlugin,
             game::plugin,
             ui::UiPlugin,
-            asset_registry::AssetRegistryPlugin,
             screens::plugin,
             render::RenderPlugin,
         ));

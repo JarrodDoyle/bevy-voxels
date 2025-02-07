@@ -10,10 +10,8 @@ use bevy::{
 };
 
 use crate::{
-    asset_registry::AssetRegistry,
-    block_type::Block,
+    assets::{Block, Model, Registry},
     game::{Chunk, VoxelStorage},
-    model::Model,
     screens::Screen,
     AppSet,
 };
@@ -73,7 +71,7 @@ impl Material for ArrayTextureMaterial {
 
 fn sys_chunk_mesher(
     mut commands: Commands,
-    registry: Res<AssetRegistry>,
+    registry: Res<Registry>,
     models: Res<Assets<Model>>,
     blocks: Res<Assets<Block>>,
     mut meshes: ResMut<Assets<Mesh>>,

@@ -5,8 +5,8 @@ use bevy::{
 };
 
 use crate::{
+    assets::Model,
     game::player::{HoverHighlight, TargetBlock},
-    model::Model,
     screens::Screen,
 };
 

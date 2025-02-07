@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::block_type::Block;
+use super::block_type::Block;
 
 #[derive(serde::Deserialize, Asset, TypePath)]
 pub struct Model {

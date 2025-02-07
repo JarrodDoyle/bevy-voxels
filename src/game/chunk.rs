@@ -2,7 +2,8 @@ use bevy::{prelude::*, utils::HashMap};
 use fastnoise2::SafeNode;
 
 use crate::{
-    asset_registry::AssetRegistry, block_type::BlockType, render::ChunkNeedsMeshing,
+    assets::{BlockType, Registry},
+    render::ChunkNeedsMeshing,
     screens::Screen,
 };
 
@@ -88,7 +89,7 @@ fn setup_noise(mut commands: Commands) {
 fn sys_chunk_spawner(
     mut commands: Commands,
     world_noise: Res<WorldNoise>,
-    registry: Res<AssetRegistry>,
+    registry: Res<Registry>,
 ) {
     let mut storage = VoxelStorage {
         chunk_len: 32,

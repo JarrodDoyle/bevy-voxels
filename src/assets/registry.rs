@@ -12,15 +12,16 @@ use bevy_asset_loader::{
 };
 use bevy_common_assets::ron::RonAssetPlugin;
 
-use crate::{
+use crate::screens::Screen;
+
+use super::{
     block_type::{set_block_texture_id_maps, Block},
     model::Model,
-    screens::Screen,
 };
 
-pub struct AssetRegistryPlugin;
+pub struct RegistryPlugin;
 
-impl Plugin for AssetRegistryPlugin {
+impl Plugin for RegistryPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins((
             RonAssetPlugin::<Model>::new(&["model.ron"]),
@@ -29,7 +30,7 @@ impl Plugin for AssetRegistryPlugin {
         app.add_loading_state(
             LoadingState::new(Screen::Loading)
                 .continue_to_state(Screen::Gameplay)
-                .load_collection::<AssetRegistry>(),
+                .load_collection::<Registry>(),
         );
         app.add_systems(
             OnExit(Screen::Loading),
@@ -55,7 +56,7 @@ impl MapKey for AssetFileStem {
 }
 
 #[derive(AssetCollection, Resource)]
-pub struct AssetRegistry {
+pub struct Registry {
     #[asset(path = "models", collection(typed))]
     model_handles: Vec<Handle<Model>>,
     #[asset(path = "textures/blocks", collection(typed, mapped))]
@@ -69,7 +70,7 @@ pub struct AssetRegistry {
     model_name_to_id: HashMap<String, u32>,
 }
 
-impl AssetRegistry {
+impl Registry {
     pub fn get_block_id(&self, name: &str) -> u32 {
         self.block_name_to_id[name]
     }
@@ -156,7 +157,7 @@ impl AssetRegistry {
 }
 
 fn construct_asset_registry(
-    mut registry: ResMut<AssetRegistry>,
+    mut registry: ResMut<Registry>,
     asset_server: Res<AssetServer>,
     images: Res<Assets<Image>>,
     blocks: Res<Assets<Block>>,
