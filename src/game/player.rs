@@ -9,7 +9,7 @@ use crate::{
     assets::{BlockType, Registry},
     render::ChunkNeedsMeshing,
     screens::Screen,
-    world::{Chunk, VoxelStorage},
+    world::{Chunk, VoxelWorld},
 };
 
 pub(super) fn plugin(app: &mut App) {
@@ -266,7 +266,7 @@ fn player_scroll_inventory(
 fn player_show_block_highlight(
     mut ray_cast: MeshRayCast,
     registry: Res<Registry>,
-    storage: Res<VoxelStorage>,
+    storage: Res<VoxelWorld>,
     query_player: Query<&Transform, With<Player>>,
     query_chunk: Query<&Chunk>,
     mut query_highlight: Query<
@@ -318,7 +318,7 @@ pub fn player_break_place_block(
     mut commands: Commands,
     mouse_buttons: Res<ButtonInput<MouseButton>>,
     registry: Res<Registry>,
-    mut storage: ResMut<VoxelStorage>,
+    mut storage: ResMut<VoxelWorld>,
     mut ray_cast: MeshRayCast,
     query_player: Query<(&Hotbar, &Transform), With<Player>>,
     query_chunk: Query<(Entity, &Chunk)>,

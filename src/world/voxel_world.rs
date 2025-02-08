@@ -13,17 +13,15 @@ impl Plugin for VoxelWorldPlugin {
 }
 
 #[derive(Resource)]
-pub struct WorldNoise {
-    pub terrain: SafeNode,
-}
-
-#[derive(Resource)]
-pub struct VoxelStorage {
+pub struct VoxelWorld {
+    pub terrain_noise: SafeNode,
+    pub terrain_frequency: f32,
+    pub terrain_seed: i32,
     pub chunk_len: usize,
     pub voxels: HashMap<[i32; 3], Vec<BlockType>>,
 }
 
-impl VoxelStorage {
+impl VoxelWorld {
     pub fn get_voxel(
         &self,
         chunk_pos: &[i32; 3],
@@ -76,8 +74,10 @@ fn setup(mut commands: Commands) {
     let encoded_node_tree = "DQADAAAAAAAAQCkAAAAAAD8AAAAAAA==";
     let node = SafeNode::from_encoded_node_tree(encoded_node_tree).unwrap();
 
-    commands.insert_resource(WorldNoise { terrain: node });
-    commands.insert_resource(VoxelStorage {
+    commands.insert_resource(VoxelWorld {
+        terrain_noise: node,
+        terrain_frequency: 0.005,
+        terrain_seed: 1338,
         chunk_len: 32,
         voxels: HashMap::<[i32; 3], Vec<BlockType>>::new(),
     });

@@ -12,7 +12,7 @@ use bevy::{
 use crate::{
     assets::Registry,
     screens::Screen,
-    world::{Chunk, VoxelStorage},
+    world::{Chunk, VoxelWorld},
     AppSet,
 };
 
@@ -72,7 +72,7 @@ impl Material for ArrayTextureMaterial {
 fn sys_chunk_mesher(
     mut commands: Commands,
     registry: Res<Registry>,
-    storage: Res<VoxelStorage>,
+    storage: Res<VoxelWorld>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ArrayTextureMaterial>>,
     chunks_query: Query<(Entity, &Chunk, &ChunkNeedsMeshing)>,

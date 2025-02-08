@@ -3,7 +3,7 @@ mod voxel_world;
 
 use bevy::prelude::*;
 
-pub use {chunk::Chunk, voxel_world::VoxelStorage};
+pub use {chunk::Chunk, voxel_world::VoxelWorld};
 
 pub struct WorldPlugin;
 

@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use crate::{assets::Registry, render::ChunkNeedsMeshing, screens::Screen, AppSet};
 
-use super::voxel_world::{VoxelStorage, WorldNoise};
+use super::voxel_world::VoxelWorld;
 
 pub struct ChunkPlugin;
 
@@ -22,20 +22,16 @@ pub struct Chunk {
 
 fn sys_chunk_spawner(
     mut commands: Commands,
-    mut storage: ResMut<VoxelStorage>,
-    world_noise: Res<WorldNoise>,
+    mut storage: ResMut<VoxelWorld>,
     registry: Res<Registry>,
 ) {
-    const FREQUENCY: f32 = 0.005;
-    const SEED: i32 = 1338;
-
     let voxels_per_chunk = storage.chunk_len * storage.chunk_len * storage.chunk_len;
     let mut noise_vals = vec![0.0; voxels_per_chunk];
 
     for z in 0..3 {
         for y in 0..3 {
             for x in 0..3 {
-                world_noise.terrain.gen_uniform_grid_3d(
+                storage.terrain_noise.gen_uniform_grid_3d(
                     &mut noise_vals,
                     (storage.chunk_len * x) as i32,
                     (storage.chunk_len * y) as i32,
@@ -43,8 +39,8 @@ fn sys_chunk_spawner(
                     storage.chunk_len as i32,
                     storage.chunk_len as i32,
                     storage.chunk_len as i32,
-                    FREQUENCY,
-                    SEED,
+                    storage.terrain_frequency,
+                    storage.terrain_seed,
                 );
 
                 let mut chunk_voxels = vec![registry.get_block_id("air"); voxels_per_chunk];
