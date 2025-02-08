@@ -1,4 +1,5 @@
 mod crosshair;
+mod hotbar;
 mod loading_screen;
 mod splash_screen;
 mod theme;
@@ -14,6 +15,7 @@ impl Plugin for UiPlugin {
             loading_screen::LoadingScreenUiPlugin,
             crosshair::CrosshairUiPlugin,
             theme::plugin,
+            hotbar::HotbarUiPlugin,
         ));
     }
 }
