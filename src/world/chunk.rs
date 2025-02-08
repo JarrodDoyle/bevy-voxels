@@ -105,7 +105,7 @@ fn spawn_chunks_around_player(
                     Chunk {
                         world_pos: [cx, cy, cz],
                     },
-                    ChunkNeedsGenerating,
+                    ChunkNeedsLoading,
                     Transform::from_xyz(cx as f32 * 32., cy as f32 * 32., cz as f32 * 32.),
                 ));
             }
@@ -248,14 +248,15 @@ fn sys_load_chunks(
 ) {
     for (id, chunk) in &query_chunks {
         let save_dir = format!("./saves/{}", voxel_world.world_name);
-        let Ok(true) = fs::exists(&save_dir) else {
-            continue;
-        };
-
         let path = format!(
             "{}/{}_{}_{}.dat",
             &save_dir, chunk.world_pos[0], chunk.world_pos[1], chunk.world_pos[2]
         );
+        let Ok(true) = fs::exists(&path) else {
+            commands.entity(id).remove::<ChunkNeedsLoading>();
+            commands.entity(id).insert(ChunkNeedsGenerating);
+            continue;
+        };
 
         let f = File::open(&path).unwrap();
         let mut reader = BufReader::new(f);
@@ -263,8 +264,10 @@ fn sys_load_chunks(
         reader.read_to_end(&mut binary_buffer).unwrap();
 
         let buffer = bincode::deserialize(&binary_buffer).unwrap();
-        let data = voxel_world.get_chunk_mut(&chunk.world_pos).unwrap();
-        *data = buffer;
+        match voxel_world.get_chunk_mut(&chunk.world_pos) {
+            Some(data) => *data = buffer,
+            None => voxel_world.load_chunk(&chunk.world_pos, buffer),
+        }
 
         commands.entity(id).remove::<ChunkNeedsLoading>();
         commands.entity(id).insert(ChunkNeedsMeshing);
