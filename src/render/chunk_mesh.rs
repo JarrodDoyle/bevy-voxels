@@ -11,8 +11,8 @@ use bevy::{
 
 use crate::{
     assets::Registry,
-    game::{Chunk, VoxelStorage},
     screens::Screen,
+    world::{Chunk, VoxelStorage},
     AppSet,
 };
 

@@ -5,6 +5,7 @@ mod game;
 mod render;
 mod screens;
 mod ui;
+mod world;
 
 use bevy::{
     audio::{AudioPlugin, Volume},
@@ -73,6 +74,7 @@ impl Plugin for AppPlugin {
             ui::UiPlugin,
             screens::plugin,
             render::RenderPlugin,
+            world::WorldPlugin,
         ));
 
         // Enable dev tools for dev builds.

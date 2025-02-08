@@ -7,11 +7,15 @@ use crate::{
     screens::Screen,
 };
 
-pub(super) fn plugin(app: &mut App) {
-    app.add_systems(
-        OnEnter(Screen::Gameplay),
-        (setup, sys_chunk_spawner).chain(),
-    );
+pub struct ChunkPlugin;
+
+impl Plugin for ChunkPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_systems(
+            OnEnter(Screen::Gameplay),
+            (setup, sys_chunk_spawner).chain(),
+        );
+    }
 }
 
 #[derive(Resource)]

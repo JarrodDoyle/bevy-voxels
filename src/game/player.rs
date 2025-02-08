@@ -9,9 +9,8 @@ use crate::{
     assets::{BlockType, Registry},
     render::ChunkNeedsMeshing,
     screens::Screen,
+    world::{Chunk, VoxelStorage},
 };
-
-use super::chunk::{Chunk, VoxelStorage};
 
 pub(super) fn plugin(app: &mut App) {
     app.insert_resource(PlayerMovementControls {
