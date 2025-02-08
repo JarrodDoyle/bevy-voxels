@@ -22,13 +22,16 @@ impl Plugin for ChunkPlugin {
         app.add_systems(
             Update,
             (
-                spawn_chunks_around_player,
-                generate_chunks,
-                sys_mark_save_all,
-                sys_save_chunks,
-                sys_mark_load_all,
-                sys_load_chunks,
+                load_unload_chunks_around_player,
+                (
+                    generate_chunks,
+                    sys_mark_save_all,
+                    sys_save_chunks,
+                    sys_mark_load_all,
+                    sys_load_chunks,
+                ),
             )
+                .chain()
                 .run_if(in_state(Screen::Gameplay)),
         );
     }
@@ -40,7 +43,9 @@ pub struct Chunk {
 }
 
 #[derive(Component)]
-pub struct ChunkNeedsSaving;
+pub struct ChunkNeedsSaving {
+    unload: bool,
+}
 
 #[derive(Component)]
 pub struct ChunkNeedsLoading;
@@ -48,11 +53,11 @@ pub struct ChunkNeedsLoading;
 #[derive(Component)]
 pub struct ChunkNeedsGenerating;
 
-fn spawn_chunks_around_player(
+fn load_unload_chunks_around_player(
     mut commands: Commands,
     storage: Res<VoxelWorld>,
     query_player: Query<&Transform, With<Player>>,
-    query_chunks: Query<&Chunk>,
+    query_chunks: Query<(Entity, &Chunk)>,
 ) {
     let player_translate = query_player.single().translation;
     let player_chunk = [
@@ -65,7 +70,7 @@ fn spawn_chunks_around_player(
     let load_region_side_length = chunk_radius * 2 + 1;
     let num_chunks = usize::pow(load_region_side_length, 3);
     let mut needs_spawning = vec![true; num_chunks];
-    for chunk in &query_chunks {
+    for (id, chunk) in &query_chunks {
         let mut exists = true;
         for i in 0..3 {
             if chunk.world_pos[i] < player_chunk[i] - chunk_radius as i32
@@ -84,6 +89,10 @@ fn spawn_chunks_around_player(
                 + y * load_region_side_length
                 + z * load_region_side_length * load_region_side_length;
             needs_spawning[idx] = false;
+        } else {
+            commands
+                .entity(id)
+                .insert(ChunkNeedsSaving { unload: true });
         }
     }
 
@@ -197,7 +206,9 @@ fn sys_mark_save_all(
 ) {
     if keys.just_pressed(KeyCode::KeyO) {
         for id in &query_chunks {
-            commands.entity(id).insert(ChunkNeedsSaving);
+            commands
+                .entity(id)
+                .insert(ChunkNeedsSaving { unload: false });
         }
     }
 }
@@ -216,10 +227,10 @@ fn sys_mark_load_all(
 
 fn sys_save_chunks(
     mut commands: Commands,
-    voxel_world: Res<VoxelWorld>,
-    query_chunks: Query<(Entity, &Chunk), With<ChunkNeedsSaving>>,
+    mut voxel_world: ResMut<VoxelWorld>,
+    query_chunks: Query<(Entity, &Chunk, &ChunkNeedsSaving)>,
 ) {
-    for (id, chunk) in &query_chunks {
+    for (id, chunk, saving) in &query_chunks {
         let data = voxel_world.get_chunk(&chunk.world_pos).unwrap();
         let buffer = bincode::serialize(data).unwrap();
 
@@ -238,6 +249,11 @@ fn sys_save_chunks(
         f.write_all(&buffer).unwrap();
 
         commands.entity(id).remove::<ChunkNeedsSaving>();
+
+        if saving.unload {
+            voxel_world.unload_chunk(&chunk.world_pos);
+            commands.entity(id).despawn();
+        }
     }
 }
 
