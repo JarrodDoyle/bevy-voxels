@@ -321,7 +321,7 @@ pub fn player_break_place_block(
     mut storage: ResMut<VoxelWorld>,
     mut ray_cast: MeshRayCast,
     query_player: Query<(&Hotbar, &Transform), With<Player>>,
-    query_chunk: Query<(Entity, &Chunk)>,
+    mut query_chunk: Query<(Entity, &mut Chunk)>,
 ) {
     let (player_hotbar, player_transform) = query_player.single();
 
@@ -379,7 +379,11 @@ pub fn player_break_place_block(
                 needs_meshing.push([cx, cy, cz + 1]);
             }
 
-            for (id, chunk) in &query_chunk {
+            for (id, mut chunk) in &mut query_chunk {
+                if chunk.world_pos == [cx, cy, cz] {
+                    chunk.dirty = true;
+                }
+
                 if needs_meshing.contains(&chunk.world_pos) {
                     commands.entity(id).insert(ChunkNeedsMeshing);
                 }

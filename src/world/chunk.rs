@@ -1,6 +1,7 @@
 use std::{
     fs::{self, File},
     io::{BufReader, Read, Write},
+    time::Instant,
 };
 
 use bevy::prelude::*;
@@ -26,9 +27,10 @@ impl Plugin for ChunkPlugin {
                 (
                     generate_chunks,
                     sys_mark_save_all,
-                    sys_save_chunks,
+                    (sys_save_chunks, unload_chunks).chain(),
                     sys_mark_load_all,
                     sys_load_chunks,
+                    scheduled_save,
                 ),
             )
                 .chain()
@@ -40,15 +42,17 @@ impl Plugin for ChunkPlugin {
 #[derive(Component)]
 pub struct Chunk {
     pub world_pos: [i32; 3],
+    pub dirty: bool,
 }
 
 #[derive(Component)]
-pub struct ChunkNeedsSaving {
-    unload: bool,
-}
+pub struct ChunkNeedsSaving;
 
 #[derive(Component)]
 pub struct ChunkNeedsLoading;
+
+#[derive(Component)]
+pub struct ChunkNeedsUnloading;
 
 #[derive(Component)]
 pub struct ChunkNeedsGenerating;
@@ -90,9 +94,10 @@ fn load_unload_chunks_around_player(
                 + z * load_region_side_length * load_region_side_length;
             needs_spawning[idx] = false;
         } else {
-            commands
-                .entity(id)
-                .insert(ChunkNeedsSaving { unload: true });
+            if chunk.dirty {
+                commands.entity(id).insert(ChunkNeedsSaving);
+            }
+            commands.entity(id).insert(ChunkNeedsUnloading);
         }
     }
 
@@ -113,6 +118,7 @@ fn load_unload_chunks_around_player(
                     StateScoped(Screen::Gameplay),
                     Chunk {
                         world_pos: [cx, cy, cz],
+                        dirty: false,
                     },
                     ChunkNeedsLoading,
                     Transform::from_xyz(cx as f32 * 32., cy as f32 * 32., cz as f32 * 32.),
@@ -126,12 +132,12 @@ fn generate_chunks(
     mut commands: Commands,
     mut storage: ResMut<VoxelWorld>,
     registry: Res<Registry>,
-    query_chunks: Query<(Entity, &Chunk), With<ChunkNeedsGenerating>>,
+    mut query_chunks: Query<(Entity, &mut Chunk), With<ChunkNeedsGenerating>>,
 ) {
     let voxels_per_chunk = storage.chunk_len * storage.chunk_len * storage.chunk_len;
     let mut noise_vals = vec![0.0; voxels_per_chunk];
 
-    for (id, chunk) in &query_chunks {
+    for (id, mut chunk) in &mut query_chunks {
         let x = chunk.world_pos[0];
         let y = chunk.world_pos[1];
         let z = chunk.world_pos[2];
@@ -192,6 +198,7 @@ fn generate_chunks(
         let world_pos = [x, y, z];
         storage.load_chunk(&world_pos, chunk_voxels);
 
+        chunk.dirty = true;
         commands
             .entity(id)
             .remove::<ChunkNeedsGenerating>()
@@ -206,9 +213,7 @@ fn sys_mark_save_all(
 ) {
     if keys.just_pressed(KeyCode::KeyO) {
         for id in &query_chunks {
-            commands
-                .entity(id)
-                .insert(ChunkNeedsSaving { unload: false });
+            commands.entity(id).insert(ChunkNeedsSaving);
         }
     }
 }
@@ -227,10 +232,15 @@ fn sys_mark_load_all(
 
 fn sys_save_chunks(
     mut commands: Commands,
-    mut voxel_world: ResMut<VoxelWorld>,
-    query_chunks: Query<(Entity, &Chunk, &ChunkNeedsSaving)>,
+    voxel_world: Res<VoxelWorld>,
+    mut query_chunks: Query<(Entity, &mut Chunk), With<ChunkNeedsSaving>>,
 ) {
-    for (id, chunk, saving) in &query_chunks {
+    let mut total_us = 0;
+    let mut chunk_count = 0;
+
+    for (id, mut chunk) in &mut query_chunks {
+        let start_time = Instant::now();
+
         let data = voxel_world.get_chunk(&chunk.world_pos).unwrap();
         let buffer = bincode::serialize(data).unwrap();
 
@@ -248,12 +258,18 @@ fn sys_save_chunks(
 
         f.write_all(&buffer).unwrap();
 
+        chunk.dirty = false;
         commands.entity(id).remove::<ChunkNeedsSaving>();
 
-        if saving.unload {
-            voxel_world.unload_chunk(&chunk.world_pos);
-            commands.entity(id).despawn();
-        }
+        total_us += (Instant::now() - start_time).as_micros();
+        chunk_count += 1;
+    }
+
+    if total_us != 0 {
+        info!(
+            "Saved {chunk_count} chunks in {total_us}. Avg: {}",
+            total_us / chunk_count
+        );
     }
 }
 
@@ -287,5 +303,35 @@ fn sys_load_chunks(
 
         commands.entity(id).remove::<ChunkNeedsLoading>();
         commands.entity(id).insert(ChunkNeedsMeshing);
+    }
+}
+
+fn scheduled_save(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut voxel_world: ResMut<VoxelWorld>,
+    query_chunks: Query<(Entity, &Chunk), Without<ChunkNeedsSaving>>,
+) {
+    voxel_world.save_timer.tick(time.delta());
+    if !voxel_world.save_timer.finished() {
+        return;
+    }
+
+    info!("saving...");
+    for (id, chunk) in &query_chunks {
+        if chunk.dirty {
+            commands.entity(id).insert(ChunkNeedsSaving);
+        }
+    }
+}
+
+fn unload_chunks(
+    mut commands: Commands,
+    mut voxel_world: ResMut<VoxelWorld>,
+    query_chunks: Query<(Entity, &Chunk), With<ChunkNeedsUnloading>>,
+) {
+    for (id, chunk) in &query_chunks {
+        voxel_world.unload_chunk(&chunk.world_pos);
+        commands.entity(id).despawn();
     }
 }

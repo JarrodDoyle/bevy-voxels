@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use bevy::{prelude::*, utils::HashMap};
 use fastnoise2::SafeNode;
 
@@ -20,6 +22,7 @@ pub struct VoxelWorld {
     pub terrain_seed: i32,
     pub chunk_len: usize,
     pub voxels: HashMap<[i32; 3], Vec<BlockType>>,
+    pub save_timer: Timer,
 }
 
 impl VoxelWorld {
@@ -86,5 +89,6 @@ fn setup(mut commands: Commands) {
         terrain_seed: 1338,
         chunk_len: 32,
         voxels: HashMap::<[i32; 3], Vec<BlockType>>::new(),
+        save_timer: Timer::new(Duration::from_secs(5), TimerMode::Repeating),
     });
 }
