@@ -1,3 +1,8 @@
+use std::{
+    fs::File,
+    io::{BufReader, Read, Write},
+};
+
 use bevy::prelude::*;
 
 use crate::{assets::Registry, render::ChunkNeedsMeshing, screens::Screen, AppSet};
@@ -10,7 +15,17 @@ impl Plugin for ChunkPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             OnEnter(Screen::Gameplay),
-            sys_chunk_spawner.after(AppSet::TickTimers),
+            (sys_chunk_spawner).after(AppSet::TickTimers),
+        );
+        app.add_systems(
+            Update,
+            (
+                sys_mark_save_all,
+                sys_save_chunks,
+                sys_mark_load_all,
+                sys_load_chunks,
+            )
+                .run_if(in_state(Screen::Gameplay)),
         );
     }
 }
@@ -19,6 +34,12 @@ impl Plugin for ChunkPlugin {
 pub struct Chunk {
     pub world_pos: [i32; 3],
 }
+
+#[derive(Component)]
+pub struct ChunkNeedsSaving;
+
+#[derive(Component)]
+pub struct ChunkNeedsLoading;
 
 fn sys_chunk_spawner(
     mut commands: Commands,
@@ -95,5 +116,75 @@ fn sys_chunk_spawner(
                 ));
             }
         }
+    }
+}
+
+fn sys_mark_save_all(
+    mut commands: Commands,
+    keys: Res<ButtonInput<KeyCode>>,
+    query_chunks: Query<Entity, (With<Chunk>, Without<ChunkNeedsSaving>)>,
+) {
+    if keys.just_pressed(KeyCode::KeyO) {
+        for id in &query_chunks {
+            commands.entity(id).insert(ChunkNeedsSaving);
+        }
+    }
+}
+
+fn sys_mark_load_all(
+    mut commands: Commands,
+    keys: Res<ButtonInput<KeyCode>>,
+    query_chunks: Query<Entity, (With<Chunk>, Without<ChunkNeedsSaving>)>,
+) {
+    if keys.just_pressed(KeyCode::KeyP) {
+        for id in &query_chunks {
+            commands.entity(id).insert(ChunkNeedsLoading);
+        }
+    }
+}
+
+fn sys_save_chunks(
+    mut commands: Commands,
+    voxel_world: Res<VoxelWorld>,
+    query_chunks: Query<(Entity, &Chunk), With<ChunkNeedsSaving>>,
+) {
+    for (id, chunk) in &query_chunks {
+        let data = voxel_world.get_chunk(&chunk.world_pos).unwrap();
+        let buffer = bincode::serialize(data).unwrap();
+
+        let path = format!(
+            "./saves/w1/{}_{}_{}.dat",
+            chunk.world_pos[0], chunk.world_pos[1], chunk.world_pos[2]
+        );
+        let mut f = File::create(&path).unwrap();
+
+        f.write_all(&buffer).unwrap();
+
+        commands.entity(id).remove::<ChunkNeedsSaving>();
+    }
+}
+
+fn sys_load_chunks(
+    mut commands: Commands,
+    mut voxel_world: ResMut<VoxelWorld>,
+    query_chunks: Query<(Entity, &Chunk), With<ChunkNeedsLoading>>,
+) {
+    for (id, chunk) in &query_chunks {
+        let path = format!(
+            "./saves/w1/{}_{}_{}.dat",
+            chunk.world_pos[0], chunk.world_pos[1], chunk.world_pos[2]
+        );
+
+        let f = File::open(&path).unwrap();
+        let mut reader = BufReader::new(f);
+        let mut binary_buffer = vec![];
+        reader.read_to_end(&mut binary_buffer).unwrap();
+
+        let buffer = bincode::deserialize(&binary_buffer).unwrap();
+        let data = voxel_world.get_chunk_mut(&chunk.world_pos).unwrap();
+        *data = buffer;
+
+        commands.entity(id).remove::<ChunkNeedsLoading>();
+        commands.entity(id).insert(ChunkNeedsMeshing);
     }
 }
