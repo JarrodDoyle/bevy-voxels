@@ -1,5 +1,5 @@
 use std::{
-    fs::File,
+    fs::{self, File},
     io::{BufReader, Read, Write},
 };
 
@@ -152,9 +152,15 @@ fn sys_save_chunks(
         let data = voxel_world.get_chunk(&chunk.world_pos).unwrap();
         let buffer = bincode::serialize(data).unwrap();
 
+        let save_dir = format!("./saves/{}", voxel_world.world_name);
+        let _ = fs::create_dir(&save_dir);
+        let Ok(true) = fs::exists(&save_dir) else {
+            continue;
+        };
+
         let path = format!(
-            "./saves/w1/{}_{}_{}.dat",
-            chunk.world_pos[0], chunk.world_pos[1], chunk.world_pos[2]
+            "{}/{}_{}_{}.dat",
+            &save_dir, chunk.world_pos[0], chunk.world_pos[1], chunk.world_pos[2]
         );
         let mut f = File::create(&path).unwrap();
 
@@ -170,9 +176,14 @@ fn sys_load_chunks(
     query_chunks: Query<(Entity, &Chunk), With<ChunkNeedsLoading>>,
 ) {
     for (id, chunk) in &query_chunks {
+        let save_dir = format!("./saves/{}", voxel_world.world_name);
+        let Ok(true) = fs::exists(&save_dir) else {
+            continue;
+        };
+
         let path = format!(
-            "./saves/w1/{}_{}_{}.dat",
-            chunk.world_pos[0], chunk.world_pos[1], chunk.world_pos[2]
+            "{}/{}_{}_{}.dat",
+            &save_dir, chunk.world_pos[0], chunk.world_pos[1], chunk.world_pos[2]
         );
 
         let f = File::open(&path).unwrap();

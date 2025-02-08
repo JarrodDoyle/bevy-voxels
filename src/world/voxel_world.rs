@@ -14,6 +14,7 @@ impl Plugin for VoxelWorldPlugin {
 
 #[derive(Resource)]
 pub struct VoxelWorld {
+    pub world_name: String,
     pub terrain_noise: SafeNode,
     pub terrain_frequency: f32,
     pub terrain_seed: i32,
@@ -75,6 +76,7 @@ fn setup(mut commands: Commands) {
     let node = SafeNode::from_encoded_node_tree(encoded_node_tree).unwrap();
 
     commands.insert_resource(VoxelWorld {
+        world_name: "Test World".to_string(),
         terrain_noise: node,
         terrain_frequency: 0.005,
         terrain_seed: 1338,
