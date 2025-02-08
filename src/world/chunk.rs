@@ -6,9 +6,7 @@ use std::{
 
 use bevy::prelude::*;
 
-use crate::{
-    assets::Registry, game::player::Player, render::ChunkNeedsMeshing, screens::Screen, AppSet,
-};
+use crate::{assets::Registry, game::player::Player, render::ChunkNeedsMeshing, screens::Screen};
 
 use super::voxel_world::VoxelWorld;
 
@@ -16,10 +14,6 @@ pub struct ChunkPlugin;
 
 impl Plugin for ChunkPlugin {
     fn build(&self, app: &mut App) {
-        // app.add_systems(
-        //     OnEnter(Screen::Gameplay),
-        //     (sys_chunk_spawner).after(AppSet::TickTimers),
-        // );
         app.add_systems(
             Update,
             (
