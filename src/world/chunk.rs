@@ -65,7 +65,7 @@ fn load_unload_chunks_around_player(
         (player_translate.z / storage.chunk_len as f32).floor() as i32,
     ];
 
-    let chunk_radius = 2;
+    let chunk_radius = 4;
     let load_region_side_length = chunk_radius * 2 + 1;
     let num_chunks = usize::pow(load_region_side_length, 3);
     let mut needs_spawning = vec![true; num_chunks];

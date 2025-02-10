@@ -1,4 +1,5 @@
 mod crosshair;
+mod debug_stats;
 mod hotbar;
 mod loading_screen;
 mod splash_screen;
@@ -16,6 +17,7 @@ impl Plugin for UiPlugin {
             crosshair::CrosshairUiPlugin,
             theme::plugin,
             hotbar::HotbarUiPlugin,
+            debug_stats::DebugStatsUiPlugin,
         ));
     }
 }

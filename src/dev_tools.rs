@@ -5,7 +5,7 @@ use bevy::{
         states::log_transitions,
         ui_debug_overlay::{DebugUiPlugin, UiDebugOptions},
     },
-    diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin},
+    diagnostic::FrameTimeDiagnosticsPlugin,
     input::common_conditions::input_just_pressed,
     pbr::wireframe::WireframeConfig,
     prelude::*,
@@ -15,11 +15,7 @@ use bevy::{
 use crate::screens::Screen;
 
 pub(super) fn plugin(app: &mut App) {
-    app.add_plugins((
-        DebugUiPlugin,
-        LogDiagnosticsPlugin::default(),
-        FrameTimeDiagnosticsPlugin,
-    ));
+    app.add_plugins((DebugUiPlugin, FrameTimeDiagnosticsPlugin));
     app.add_systems(Update, log_transitions::<Screen>);
     app.add_systems(
         Update,
