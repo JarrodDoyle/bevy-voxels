@@ -1,10 +1,11 @@
 use std::{
     fs::{self, File},
-    io::{BufReader, Read, Write},
+    io::{Read, Write},
     time::Instant,
 };
 
 use bevy::prelude::*;
+use flate2::{read::DeflateDecoder, write::DeflateEncoder, Compression};
 
 use crate::{assets::Registry, game::player::Player, render::ChunkNeedsMeshing, screens::Screen};
 
@@ -235,22 +236,25 @@ fn sys_save_chunks(
     for (id, mut chunk) in &mut query_chunks {
         let start_time = Instant::now();
 
-        let data = voxel_world.get_chunk(&chunk.world_pos).unwrap();
-        let buffer = bincode::serialize(data).unwrap();
-
         let save_dir = format!("./saves/{}", voxel_world.world_name);
         let _ = fs::create_dir(&save_dir);
         let Ok(true) = fs::exists(&save_dir) else {
             continue;
         };
 
+        let data = voxel_world.get_chunk(&chunk.world_pos).unwrap();
+        let buffer = bincode::serialize(data).unwrap();
+
+        let mut encoder = DeflateEncoder::new(Vec::new(), Compression::fast());
+        encoder.write_all(&buffer).unwrap();
+        let compressed_buffer = encoder.finish().unwrap();
+
         let path = format!(
             "{}/{}_{}_{}.dat",
             &save_dir, chunk.world_pos[0], chunk.world_pos[1], chunk.world_pos[2]
         );
         let mut f = File::create(&path).unwrap();
-
-        f.write_all(&buffer).unwrap();
+        f.write_all(&compressed_buffer).unwrap();
 
         chunk.dirty = false;
         commands.entity(id).remove::<ChunkNeedsSaving>();
@@ -272,7 +276,12 @@ fn sys_load_chunks(
     mut voxel_world: ResMut<VoxelWorld>,
     query_chunks: Query<(Entity, &Chunk), With<ChunkNeedsLoading>>,
 ) {
+    let mut total_us = 0;
+    let mut chunk_count = 0;
+
     for (id, chunk) in &query_chunks {
+        let start_time = Instant::now();
+
         let save_dir = format!("./saves/{}", voxel_world.world_name);
         let path = format!(
             "{}/{}_{}_{}.dat",
@@ -284,12 +293,12 @@ fn sys_load_chunks(
             continue;
         };
 
+        let mut decompressed_buffer = vec![];
         let f = File::open(&path).unwrap();
-        let mut reader = BufReader::new(f);
-        let mut binary_buffer = vec![];
-        reader.read_to_end(&mut binary_buffer).unwrap();
+        let mut decoder = DeflateDecoder::new(f);
+        decoder.read_to_end(&mut decompressed_buffer).unwrap();
 
-        let buffer = bincode::deserialize(&binary_buffer).unwrap();
+        let buffer = bincode::deserialize(&decompressed_buffer).unwrap();
         match voxel_world.get_chunk_mut(&chunk.world_pos) {
             Some(data) => *data = buffer,
             None => voxel_world.load_chunk(&chunk.world_pos, buffer),
@@ -297,6 +306,16 @@ fn sys_load_chunks(
 
         commands.entity(id).remove::<ChunkNeedsLoading>();
         commands.entity(id).insert(ChunkNeedsMeshing);
+
+        total_us += (Instant::now() - start_time).as_micros();
+        chunk_count += 1;
+    }
+
+    if total_us != 0 {
+        info!(
+            "Loaded {chunk_count} chunks in {total_us}. Avg: {}",
+            total_us / chunk_count
+        );
     }
 }
 

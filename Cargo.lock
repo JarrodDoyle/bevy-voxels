@@ -341,6 +341,7 @@ dependencies = [
  "bevy_common_assets",
  "bincode",
  "fastnoise2",
+ "flate2",
  "log",
  "serde",
 ]
