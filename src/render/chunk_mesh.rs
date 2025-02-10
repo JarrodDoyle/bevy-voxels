@@ -2,6 +2,7 @@ use std::time::Instant;
 
 use bevy::{
     asset::RenderAssetUsages,
+    diagnostic::Diagnostics,
     prelude::*,
     render::{
         mesh::{Indices, MeshVertexAttribute, PrimitiveTopology},
@@ -94,6 +95,11 @@ fn sys_chunk_mesher(
 
     let mut chunk_count = 0;
     for (id, chunk, _) in &chunks_query {
+        // TODO: Make chunks per frame configurable
+        if chunk_count > 8 {
+            return;
+        }
+
         let start_time = Instant::now();
 
         let cx = chunk.world_pos[0];
