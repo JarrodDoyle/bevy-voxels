@@ -4,10 +4,16 @@ use std::{
     time::Instant,
 };
 
-use bevy::prelude::*;
+use bevy::{diagnostic::Diagnostics, prelude::*};
 use flate2::{read::DeflateDecoder, write::DeflateEncoder, Compression};
 
-use crate::{assets::Registry, game::player::Player, render::ChunkNeedsMeshing, screens::Screen};
+use crate::{
+    assets::Registry,
+    diagnostics::{GEN_TIME_DIAGNOSTIC, LOAD_TIME_DIAGNOSTIC, SAVE_TIME_DIAGNOSTIC},
+    game::player::Player,
+    render::ChunkNeedsMeshing,
+    screens::Screen,
+};
 
 use super::voxel_world::VoxelWorld;
 
@@ -125,6 +131,7 @@ fn load_unload_chunks_around_player(
 
 fn generate_chunks(
     mut commands: Commands,
+    mut diagnostics: Diagnostics,
     mut storage: ResMut<VoxelWorld>,
     registry: Res<Registry>,
     mut query_chunks: Query<(Entity, &mut Chunk), With<ChunkNeedsGenerating>>,
@@ -132,7 +139,15 @@ fn generate_chunks(
     let voxels_per_chunk = storage.chunk_len * storage.chunk_len * storage.chunk_len;
     let mut noise_vals = vec![0.0; voxels_per_chunk];
 
+    let mut chunk_count = 0;
     for (id, mut chunk) in &mut query_chunks {
+        // TODO: Make chunks per frame configurable
+        if chunk_count > 8 {
+            return;
+        }
+
+        let start_time = Instant::now();
+
         let x = chunk.world_pos[0];
         let y = chunk.world_pos[1];
         let z = chunk.world_pos[2];
@@ -198,6 +213,10 @@ fn generate_chunks(
             .entity(id)
             .remove::<ChunkNeedsGenerating>()
             .insert(ChunkNeedsMeshing);
+
+        let gen_time = (Instant::now() - start_time).as_micros();
+        diagnostics.add_measurement(&GEN_TIME_DIAGNOSTIC, || gen_time as f64);
+        chunk_count += 1;
     }
 }
 
@@ -227,13 +246,17 @@ fn sys_mark_load_all(
 
 fn sys_save_chunks(
     mut commands: Commands,
+    mut diagnostics: Diagnostics,
     voxel_world: Res<VoxelWorld>,
     mut query_chunks: Query<(Entity, &mut Chunk), With<ChunkNeedsSaving>>,
 ) {
-    let mut total_us = 0;
     let mut chunk_count = 0;
-
     for (id, mut chunk) in &mut query_chunks {
+        // TODO: Make chunks per frame configurable
+        if chunk_count > 8 {
+            return;
+        }
+
         let start_time = Instant::now();
 
         let save_dir = format!("./saves/{}", voxel_world.world_name);
@@ -259,27 +282,25 @@ fn sys_save_chunks(
         chunk.dirty = false;
         commands.entity(id).remove::<ChunkNeedsSaving>();
 
-        total_us += (Instant::now() - start_time).as_micros();
+        let save_time = (Instant::now() - start_time).as_micros();
+        diagnostics.add_measurement(&SAVE_TIME_DIAGNOSTIC, || save_time as f64);
         chunk_count += 1;
-    }
-
-    if total_us != 0 {
-        info!(
-            "Saved {chunk_count} chunks in {total_us}. Avg: {}",
-            total_us / chunk_count
-        );
     }
 }
 
 fn sys_load_chunks(
     mut commands: Commands,
+    mut diagnostics: Diagnostics,
     mut voxel_world: ResMut<VoxelWorld>,
     query_chunks: Query<(Entity, &Chunk), With<ChunkNeedsLoading>>,
 ) {
-    let mut total_us = 0;
     let mut chunk_count = 0;
-
     for (id, chunk) in &query_chunks {
+        // TODO: Make chunks per frame configurable
+        if chunk_count > 8 {
+            return;
+        }
+
         let start_time = Instant::now();
 
         let save_dir = format!("./saves/{}", voxel_world.world_name);
@@ -307,15 +328,9 @@ fn sys_load_chunks(
         commands.entity(id).remove::<ChunkNeedsLoading>();
         commands.entity(id).insert(ChunkNeedsMeshing);
 
-        total_us += (Instant::now() - start_time).as_micros();
+        let load_time = (Instant::now() - start_time).as_micros();
+        diagnostics.add_measurement(&LOAD_TIME_DIAGNOSTIC, || load_time as f64);
         chunk_count += 1;
-    }
-
-    if total_us != 0 {
-        info!(
-            "Loaded {chunk_count} chunks in {total_us}. Avg: {}",
-            total_us / chunk_count
-        );
     }
 }
 
