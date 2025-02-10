@@ -243,7 +243,7 @@ fn sys_save_chunks(
         };
 
         let data = voxel_world.get_chunk(&chunk.world_pos).unwrap();
-        let buffer = bincode::serialize(data).unwrap();
+        let buffer = bitcode::encode(data);
 
         let mut encoder = DeflateEncoder::new(Vec::new(), Compression::fast());
         encoder.write_all(&buffer).unwrap();
@@ -298,7 +298,7 @@ fn sys_load_chunks(
         let mut decoder = DeflateDecoder::new(f);
         decoder.read_to_end(&mut decompressed_buffer).unwrap();
 
-        let buffer = bincode::deserialize(&decompressed_buffer).unwrap();
+        let buffer = bitcode::decode(&decompressed_buffer).unwrap();
         match voxel_world.get_chunk_mut(&chunk.world_pos) {
             Some(data) => *data = buffer,
             None => voxel_world.load_chunk(&chunk.world_pos, buffer),
