@@ -1,6 +1,7 @@
 mod assets;
 #[cfg(feature = "dev")]
 mod dev_tools;
+mod diagnostics;
 mod game;
 mod render;
 mod screens;
@@ -75,6 +76,7 @@ impl Plugin for AppPlugin {
             screens::plugin,
             render::RenderPlugin,
             world::WorldPlugin,
+            diagnostics::DiagnosticsPlugin,
         ));
 
         // Enable dev tools for dev builds.

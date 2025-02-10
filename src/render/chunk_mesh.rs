@@ -11,6 +11,7 @@ use bevy::{
 
 use crate::{
     assets::Registry,
+    diagnostics::MESHING_TIME_DIAGNOSTIC,
     screens::Screen,
     world::{Chunk, VoxelWorld},
     AppSet,
@@ -71,6 +72,7 @@ impl Material for ArrayTextureMaterial {
 
 fn sys_chunk_mesher(
     mut commands: Commands,
+    mut diagnostics: Diagnostics,
     registry: Res<Registry>,
     storage: Res<VoxelWorld>,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -90,7 +92,6 @@ fn sys_chunk_mesher(
         [0, 0, -1], // back
     ];
 
-    let mut total_us = 0;
     let mut chunk_count = 0;
     for (id, chunk, _) in &chunks_query {
         let start_time = Instant::now();
@@ -213,14 +214,8 @@ fn sys_chunk_mesher(
             commands.entity(id).remove::<(Mesh3d, ChunkNeedsMeshing)>();
         }
 
-        total_us += (Instant::now() - start_time).as_micros();
+        let mesh_time = (Instant::now() - start_time).as_micros();
+        diagnostics.add_measurement(&MESHING_TIME_DIAGNOSTIC, || mesh_time as f64);
         chunk_count += 1;
-    }
-
-    if total_us != 0 {
-        info!(
-            "Meshed {chunk_count} chunks in {total_us}. Avg: {}",
-            total_us / chunk_count
-        );
     }
 }
